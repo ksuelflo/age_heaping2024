@@ -27,7 +27,7 @@ id_vec <- vector(mode = "integer", 12000)
 period_vec<- vector(mode = "integer", 12000)
 event_vec <- vector(mode = "integer", 12000)
 t_vec <- vector(mode = "numeric", 12000)
-max_age_vec <- vector(mode = "integer", 12000)
+max_age_vec <- vector(mode = "integer", 12000)librar
 ```
 
 
@@ -46,7 +46,7 @@ simulation <- function(months, num_child, lam1, k1, lam2, k2){
       id_vec[counter] <- id
       period_vec[counter] <- 1
       max_age_vec[counter] <- max_age
-      #if the child dies, we sample their death to find the exact time they do so. We continue doing this until we find `t` that is less than their maximum age in period 1.
+      #if the child dies, we sample their death to find the exact time they do so. We continue doing this until we find `t` that is less than their maximum age in period 1. 
       if (death == 1){
         t <- rweibull(1, scale = lam1, shape = k1)
         while (t >= max_age){
@@ -80,13 +80,13 @@ simulation <- function(months, num_child, lam1, k1, lam2, k2){
         max_age_vec[counter] <- max_age
         t_vec[counter] <- t
         event_vec[counter] <- died
-        counter <- counter + 1
       }
+      counter <- counter + 1
     }
   }
   #After running for loops, build data frame with vectors. Then filter out excess space.
   surv_sim <- data.frame(id = id_vec, period = period_vec, t = t_vec, event = event_vec, max_age = max_age_vec)%>%
-    filter(id_vec != 0)
+    filter(id != 0)
   return (surv_sim)
 }
 
@@ -98,7 +98,48 @@ period_1 <- both_periods%>%
 period_2 <- both_periods%>%
   filter(period == 2)
 
+survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_1, dist = "weibull")
 
-surmo<-survreg( Surv(validtimes, status)~1, dist="weibull", data = period_1)
+survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
+
+
 ```
+
+```{r}
+library(survival)
+y <- rweibull(1000, shape=2, scale=5)
+r <- survreg(Surv(y)~1, dist="weibull")
+a <- 1/r$scale      # Approximately 2
+b <- exp( coef(r) ) # Approximately 5
+y2 <- b * ( -ln( 1-runif(1000) ) ) ^(1/a)
+y3 <- rweibull(1000, shape=a, scale=5)
+# Check graphically that the distributions are the same
+plot(sort(y), sort(y2))
+abline(0,1)
+
+
+
+y <- rweibull(1000, shape=2, scale=5)
+r <- survreg(Surv(y)~1, dist="weibull")
+shape <- 1/r$scale      # Approximately 2
+scale <- exp( coef(r) ) # Approximately 5
+
+exp(16)
+
+
+#Testing period 1 parameters.
+res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_1, dist = "weibull")
+shape <- 1/res$scale #Should be exp(-1) or .368
+scale <- exp(coef(res)) #Should be exp(15) or 3269017
+
+#Testing period 2 parameters
+res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
+shape <- 1/res$scale #Should be exp(-1) or .368
+scale <- exp(coef(res)) #Should be exp(16) or 8886111
+```
+
+
+
+
+
 
