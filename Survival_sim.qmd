@@ -27,7 +27,7 @@ id_vec <- vector(mode = "integer", 12000)
 period_vec<- vector(mode = "integer", 12000)
 event_vec <- vector(mode = "integer", 12000)
 t_vec <- vector(mode = "numeric", 12000)
-max_age_vec <- vector(mode = "integer", 12000)librar
+max_age_vec <- vector(mode = "integer", 12000)
 ```
 
 
@@ -89,7 +89,28 @@ simulation <- function(months, num_child, lam1, k1, lam2, k2){
     filter(id != 0)
   return (surv_sim)
 }
+```
 
+```{r}
+# library(survival)
+# y <- rweibull(1000, shape=2, scale=5)
+# r <- survreg(Surv(y)~1, dist="weibull")
+# a <- 1/r$scale      # Approximately 2
+# b <- exp( coef(r) ) # Approximately 5
+# y2 <- b * ( -ln( 1-runif(1000) ) ) ^(1/a)
+# y3 <- rweibull(1000, shape=a, scale=5)
+# # Check graphically that the distributions are the same
+# plot(sort(y), sort(y2))
+# abline(0,1)
+# 
+# 
+# 
+# y <- rweibull(1000, shape=2, scale=5)
+# r <- survreg(Surv(y)~1, dist="weibull")
+# shape <- 1/r$scale      # Approximately 2
+# scale <- exp( coef(r) ) # Approximately 5
+# 
+# exp(16)
 
 both_periods <- simulation(60, 100, exp(15), exp(-1), exp(16), exp(-1))
 period_1 <- both_periods%>%
@@ -98,33 +119,84 @@ period_1 <- both_periods%>%
 period_2 <- both_periods%>%
   filter(period == 2)
 
-survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_1, dist = "weibull")
+#Testing period 1 parameters.
+res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_1, dist = "weibull")
+shape <- 1/res$scale #Should be exp(-1) or .368
+scale <- exp(coef(res)) #Should be exp(15) or 3269017
 
-survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
-
-
+#Testing period 2 parameters
+res2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
+shape2 <- 1/res2$scale #Should be exp(-1) or .368
+scale2 <- exp(coef(res2)) #Should be exp(16) or 8886111
 ```
 
+
 ```{r}
-library(survival)
-y <- rweibull(1000, shape=2, scale=5)
-r <- survreg(Surv(y)~1, dist="weibull")
-a <- 1/r$scale      # Approximately 2
-b <- exp( coef(r) ) # Approximately 5
-y2 <- b * ( -ln( 1-runif(1000) ) ) ^(1/a)
-y3 <- rweibull(1000, shape=a, scale=5)
-# Check graphically that the distributions are the same
-plot(sort(y), sort(y2))
-abline(0,1)
+prob_simulation <- function(months, num_child, lam1, k1, lam2, k2){
+  counter <- 1
+  for (i in 1:months){
+    #Loop through each month
+    for (j in 1:num_child){
+      #Loop through each child in each month
+      id <- (i*100) + (j -1) #Unique Identifier for each child
+      max_age <- months - (i-1) #Maximum age they can live within time period 1
+      p <- pweibull(max_age, k1, lam1) #Probability of death 
+      death <- rbinom(1,1,p) #1 or 0, based on probability `p` using Binomial distribution
+      #OPTION 1 method
+      id_vec[counter] <- id
+      period_vec[counter] <- 1
+      max_age_vec[counter] <- max_age
+      #if the child dies, we sample their death to find the exact time they do so. We continue doing this until we find `t` that is less than their maximum age in period 1. 
+      if (death == 1){
+        t <- rweibull(1, scale = lam1, shape = k1)
+        while (t >= max_age){
+          t <- rweibull(1, scale = lam1, shape = k1)
+        }
+        #OPTION 1 method
+        event_vec[counter] <- 1
+        t_vec[counter] <- t
+      }
+      else{
+        #If they do not die in period 1, we have to find out if they died in period 2, or if they reach 60 months, then we censor them.
+        #OPTION 1 method
+        event_vec[counter] <- 0
+        t_vec[counter] <- max_age
+        p2 <- pweibull(60, k2, lam2) - pweibull(max_age, k2, lam2)
+        # p <- pweibull(60-max_age, k2, lam2)
+        # print(p2-p)
+        death <- rbinom(1,1,p2)
+        if (death == 1){
+          t <- rweibull(1, scale = lam2, shape = k2)
+          while (t >= 60-max_age){
+            t <- rweibull(1, scale = lam2, shape = k2)
+          }
+          t <- t + max_age
+        }
+        else{
+          t <- 60
+        }
+        counter <- counter + 1
+        id_vec[counter] <- id
+        period_vec[counter] <- 2
+        max_age_vec[counter] <- max_age
+        t_vec[counter] <- t
+        event_vec[counter] <- death
+      }
+      counter <- counter + 1
+    }
+  }
+  #After running for loops, build data frame with vectors. Then filter out excess space.
+  surv_sim <- data.frame(id = id_vec, period = period_vec, t = t_vec, event = event_vec, max_age = max_age_vec)%>%
+    filter(id != 0)
+  return (surv_sim)
+}
 
+both_periods <- prob_simulation(60, 100, exp(15), exp(-1), exp(16), exp(-1))
+period_1 <- both_periods%>%
+  filter(period == 1)
 
-
-y <- rweibull(1000, shape=2, scale=5)
-r <- survreg(Surv(y)~1, dist="weibull")
-shape <- 1/r$scale      # Approximately 2
-scale <- exp( coef(r) ) # Approximately 5
-
-exp(16)
+period_2 <- both_periods%>%
+  filter(period == 2)
 
 
 #Testing period 1 parameters.
@@ -133,13 +205,28 @@ shape <- 1/res$scale #Should be exp(-1) or .368
 scale <- exp(coef(res)) #Should be exp(15) or 3269017
 
 #Testing period 2 parameters
-res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
-shape <- 1/res$scale #Should be exp(-1) or .368
-scale <- exp(coef(res)) #Should be exp(16) or 8886111
+res2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = period_2, dist = "weibull")
+shape2 <- 1/res2$scale #Should be exp(-1) or .368
+scale2 <- exp(coef(res2)) #Should be exp(16) or 8886111
+
+
 ```
 
 
-
-
+```{r}
+prob_simulation <- function(months, num_child, lam1, k1, lam2, k2, periods, years = FALSE){
+  if (years){
+    periods <- periods * 12
+  }
+  for (i in 1:months){
+    for (j in 1:num_child){
+      while (!dead){
+        
+      }
+    }
+  }
+  
+}
+```
 
 
