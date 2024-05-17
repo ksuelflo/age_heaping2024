@@ -229,23 +229,26 @@ random_death <- function(max_age, shape, scale){
 general_sim <- function(num_child, lam1, k1, periods, years = FALSE){
   
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
-
-
-  # ids <- rep(1:(num_child*periods*60), each = periods)
-  # birthdates <- rep(1:(60*periods), each = num_child*periods)
-  # period <- rep(1:periods, times = num_child*periods*60)
-  # max_age <- 60*period - birthdates
-  # p <- pweibull(max_age, k1, lam1)
-  ids <- rep(0,90000)
-  birthdates <- rep(0,90000)
-  period <- rep(0,90000)
-  max_age <- rep(0,90000)
-  p <- rep(0,90000)
   
-  for (i in periods:1){
-    ids[(1 + num_child*60*(i-1)):(num_child*60*i)] <- rep(1:(num_child*60), each = i)
-    birthdates[(1 + num_child*60*(i-1)):(num_child*60*i)] <- rep(1:())
-  }
+
+  #NOTE: NEED to fix the setting up of data frame. 
+  ids <- rep(1:(num_child*periods*60), each = periods)
+  birthdates <- rep(1:(60*periods), each = num_child*periods)
+  period <- rep(1:periods, times = num_child*periods*60)
+  max_age <- 60*period - birthdates
+  p <- pweibull(max_age, k1, lam1)
+  
+  #Beginning to fix setting up of data frame here with for loop also.
+  # ids <- rep(0,90000)
+  # birthdates <- rep(0,90000)
+  # period <- rep(0,90000)
+  # max_age <- rep(0,90000)
+  # p <- rep(0,90000)
+  # 
+  # for (i in periods:1){
+  #   ids[(1 + num_child*60*(i-1)):(num_child*60*i)] <- rep(1:(num_child*60), each = i)
+  #   birthdates[(1 + num_child*60*(i-1)):(num_child*60*i)] <- rep(1:())
+  # }
   
   #This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
   
