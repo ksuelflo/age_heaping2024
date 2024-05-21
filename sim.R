@@ -14,19 +14,21 @@ library(survival)
 #' Add roxygen documentation here
 helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age){
   
-  #p is the vector we will populate. periods and len_period are helpful variables to have for later. 
+  # p is the vector we will populate. periods and len_period are helpful variables to have for later. 
+  # Note from Taylor - what exactly is len_period? Could use more documentation here
   periods <- nrow(param_matrix)
   len_period <- num_child*months*periods
   p <- rep(0, periods*len_period)
   
-  #loop through each period
+  # loop through each period
   for (i in 1:periods){
     
-    #Calculate the low index and high index, for example, for 5 periods of 20000 observations each, the first iteration of the loop low_index would equal 1, and high_index would equal 20000.
+    # Calculate the low index and high index, for example, for 5 periods of 20000 observations each, 
+    # the first iteration of the loop low_index would equal 1, and high_index would equal 20000.
     low_index <- len_period * (i-1) + 1
     high_index <- len_period * i
     
-    #The following if, else if, else statements handle populating `p` based on what distribution we choose. 
+    # The following if, else if, else statements handle populating `p` based on what distribution we choose. 
     if (distribution == "weibull"){
       p[low_index:high_index] <- pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1])
     }
@@ -36,6 +38,8 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     }
     
     else{
+      # Note from Taylor - need to add a library() statement at the top of the script for the package that contains
+      # pgengamma() function
       p[low_index:high_index] <- pgengamma(q = max_age[low_index:high_index], mu = param_matrix[i,2], sigma = param_matrix[i,1], Q = param_matrix[i,3])
     }
     
@@ -46,6 +50,7 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
 
 #' Add roxygen documentation here
 general_sim <- function(num_child, param_matrix, distribution = "weibull", months){
+  
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
   
   periods <- nrow(param_matrix)
@@ -54,35 +59,63 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   period <- rep(1:periods, times = num_child*periods*months)
   max_age <- (months*period - birthdates) + 1
   
-  #Filling p based on distribution.
+  # Note from Taylor - put in a dataframe, easier to debug
+  sim_df <- data.frame(id = ids,
+             birthdate = birthdates,
+             period = period,
+             max_age = max_age)
+  
+  # Filling p based on distribution.
   
   p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age)
   
-  #This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
+  # Note from Taylor - add to dataframe, easier to debug
+  sim_df$p <- p
   
+  # returning this for debugging at this point
+  return(sim_df)
+  
+  # This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" 
+  # by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
+  
+  # Note from Taylor - should this be all zeros? Could you just do this the same way as you 
+  # define t and event?
   age_at_begin <- c(0,max_age)
   age_at_begin[seq(periods+1, length(age_at_begin), periods)] <- 0
   age_at_begin <- age_at_begin[-length(age_at_begin)]
   
-  #these two columns will be iteratively populated in the for loop. T is time of event within period, event is a binary outcome, either 1 or 0.
+  # these two columns will be iteratively populated in the for loop. T is time of event within period, 
+  # event is a binary outcome, either 1 or 0.
+  
   t <- rep(0, num_child*periods*months*periods)
   event <- rep(0, num_child*periods*months*periods)
   
-  #`for loop that runs binomial using probability p, and if they die, then simulates an appropiate time. If not, t is equal to max age and event is equal to 0. 
+  # for loop that runs binomial using probability p, and if they die, then simulates an appropriate time. 
+  # If not, t is equal to max age and event is equal to 0. 
+  
   already_died <- FALSE
   curr_period <- 1
   
   start <- Sys.time()
+  
   for (i in seq_along(ids)){
-    #If the child already died in an earlier period, skip to the else statement. Otherwise, go through this if statement.
+     
+    # If the child already died in an earlier period, skip to the else statement. 
+    # Otherwise, go through this if statement.
+    
     if (!already_died){
-      died = rbinom(n = 1,size = 1, p = p[i])
       
-      #If they died, sample the time of death until it falls within their age at the beginning of the period and the age at the end of the period. 
-      if (died == 1){
+      died <- rbinom(n = 1,size = 1, p = p[i])
+      
+      # If they died, sample the time of death until it falls within their age at the 
+      # beginning of the period and the age at the end of the period. 
+      
+      if (died == 1) {
         event[i] <- died
         
-        #The following series of if, else if, else statements handle which distribution we choose. For now, only "weibull" works. We randomly sample a death. 
+        # The following series of if, else if, else statements handle which distribution we choose. 
+        # For now, only "weibull" works. We randomly sample a death. 
+        
         if (distribution == "weibull"){
           time <- rweibull(n = 1, scale = param_matrix[curr_period, 1], shape = param_matrix[curr_period,2])
         }
@@ -124,7 +157,9 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
       
     }
     
-    #If they already died, set their time of event to their maximum age within the period, and set the event to NA. This allows us to filter out the NA afterwards, because these observations aren't possible! (the child is dead!)
+    #If they already died, set their time of event to their maximum age within the period, 
+    # and set the event to NA. This allows us to filter out the NA afterwards, 
+    # because these observations aren't possible! (the child is dead!)
     else{
       time <- max_age[i]
       event[i] <- NA
@@ -133,12 +168,14 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
     t[i] <- time
     curr_period <- curr_period + 1
     
-    #In the if statement below this one, we check if the next observation has an age_at_begin of 0, essentially checking if the next observation is a new child. This if statement is included so there is not an index out of bounds error on the final observation.
+    # In the if statement below this one, we check if the next observation has an age_at_begin of 0, 
+    # essentially checking if the next observation is a new child. This if statement is included so there 
+    # is not an index out of bounds error on the final observation.
     if (i == length(max_age)){
       break
     }
     
-    #Checks if the next observation is a new child. If it is, the boolean already_died is reset.
+    # Checks if the next observation is a new child. If it is, the boolean already_died is reset.
     if (age_at_begin[i+1] == 0){
       already_died <- FALSE
       curr_period <- 1
@@ -163,7 +200,6 @@ weibull_params <- function(low, high, periods){
   }
 }
 
-
 # Code Testing - One time period ------------------------------------------
 
 # Building out parameter matrix. Eventually this needs to be a function.
@@ -175,7 +211,10 @@ scales_lam <- weibull_params(15, 17, 1)
 matrix_params <- cbind(scales_lam, shapes_k)
 
 # Simulate data
-sims <- general_sim(num_child = 100000, param_matrix = matrix_params, distribution = "weibull", months = 60)
+sims <- general_sim(num_child = 100000, # Note from Taylor - it'll take a while, but I want you to try this with an even bigger number. Add another zero, and see if you get closer to the "truth"
+                    param_matrix = matrix_params, 
+                    distribution = "weibull", 
+                    months = 60)
 
 # Testing period 1 parameters.
 res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims, dist = "weibull")
@@ -185,10 +224,44 @@ scale_1 <- exp(coef(res_1)) #Should be exp(16) or 8886111
 # Note from Taylor - okay to compare on the log scale! This actually isn't quite as close as I would have expected
 # it to be, even with 100,000 people
 shape_1
-log(scale_1) # should be roughly log(16)
+log(scale_1) # should be roughly 16
+
+
+# Note from Taylor - Just for an extra comparison, let's generate right-censored Weibull data without the function and
+# see if we get something similar
+test_t <- rweibull(1000000, shape = shapes_k, scale = scales_lam)
+test_event <- ifelse(test_t >= 60, 0, 1)
+test_t <- ifelse(test_t >= 60, 60, test_t)
+test_res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = data.frame(t = test_t,
+                                                                                       event = test_event),
+        dist = "weibull")
+
+1/test_res$scale
+coef(test_res)
+
+
+# Code Testing - Two time periods -----------------------------------------
+
+shapes_k_2 <- weibull_params(low = -1.5, high = -.5, periods = 2)
+scales_lam_2 <- weibull_params(low = 15, high = 17, periods = 2)
+matrix_params_2 <- cbind(scales_lam_2, shapes_k_2)
+
+sims_2 <- general_sim(num_child = 10, 
+                      param_matrix = matrix_params_2, 
+                      distribution = "weibull", 
+                      months = 60)
+
+# Note from Taylor - returned sim_df. Your probabilities seem to be incorrect for later time periods
+# For the first child (id == 1), you should have the following two pweibull() statements I believe:
+
+sim_df %>% head()
+
+pweibull(60, shape = param_matrix[1,2], scale = param_matrix[1,1])
+(pweibull(120, shape = param_matrix[2,2], scale = param_matrix[2,1]) - pweibull(60, shape = param_matrix[2,2], scale = param_matrix[2,1]))/(1 - pweibull(60, shape = param_matrix[2,2], scale = param_matrix[2,1]))
+
+# What you have for period 2 is way too high, and I'm not immediately sure why without digging in further. See if you can go from here!
 
 # Code Testing - Five time periods ----------------------------------------
-
 
 #Building out parameter matrix. Eventually this needs to be a function.
 shapes_k_5 <- weibull_params(low = -1.5, high = -.5, periods = 5)
