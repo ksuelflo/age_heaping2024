@@ -225,7 +225,6 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     
     #The following if, else if, else statements handle populating `p` based on what distribution we choose. 
     if (distribution == "weibull"){
-      print("distribution is weibull")
       p[low_index:high_index] <- pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1])
     }
     
@@ -243,11 +242,13 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
 }
 ```
 
+```{r}
+```
+
 
 ```{r}
 
 general_sim <- function(num_child, param_matrix, distribution = "weibull", months){
-  
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
   
   periods <- nrow(param_matrix)
@@ -257,7 +258,8 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   max_age <- (months*period - birthdates) + 1
   
   #Filling p based on distribution.
-  p <- helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age)
+  
+  p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age)
   
   #This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
   
@@ -272,8 +274,12 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   #`for loop that runs binomial using probability p, and if they die, then simulates an appropiate time. If not, t is equal to max age and event is equal to 0. 
   already_died <- FALSE
   curr_period <- 1
+  
+  start <- Sys.time()
   for (i in seq_along(ids)){
-    
+    if (i%%100 == 0){
+      print(i)
+    }
     #If the child already died in an earlier period, skip to the else statement. Otherwise, go through this if statement.
     if (!already_died){
       died = rbinom(n = 1,size = 1, p = p[i])
@@ -345,6 +351,8 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
     }
     
   }
+  end <- Sys.time()
+  print(start-end)
   
   sim_data <- data.frame(id = ids, birthdate = birthdates, period = period, max_age = max_age, age_at_begin = age_at_begin, p = p, event = event, t = t)
 
@@ -365,11 +373,12 @@ weibull_params <- function(low, high, periods){
 ```
 
 
+
 ```{r}
 
 #Building out parameter matrix. Eventually this needs to be a function.
-shapes_k <- weibull_params(-1.5, -.5, 5)
-scales_lam <- weibull_params(15, 17, 5)
+shapes_k <- weibull_params(-1.5, -.5,4)
+scales_lam <- weibull_params(15, 17, 4)
 #matrix_params is a nxm matrix, where n is the number of periods, and m is the number of parameters in the distribution. 
 matrix_params <- cbind(scales_lam, shapes_k)
 
@@ -385,6 +394,10 @@ sims_clean <- sims%>%
   filter(keep_row)%>%
   na.omit(event)%>%
   select(-keep_row)
+
+# matrix_period1 <- cbind(c(exp(16), exp(15)), c(exp(-1), exp(-1.2)))
+# 
+# general_sim(num_child = 10000, param_matrix = matrix_period1, distribution = "weibull", months = 60)
 
 #Data frames for each period, in order to test parameters.
 sims_clean_1 <- sims_clean%>%
