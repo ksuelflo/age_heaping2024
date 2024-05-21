@@ -1,4 +1,17 @@
+# Project: Age-Heaping Simulation
+# Authors: Kyle Suelflow & Taylor Okonek
+# Date: Summer 2024
+
+
+## Load necessary packages up front
+library(survival)
+
+
+# Functions ---------------------------------------------------------------
+
 #function to fill the vector of probabilities of death. 
+
+#' Add roxygen documentation here
 helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age){
   
   #p is the vector we will populate. periods and len_period are helpful variables to have for later. 
@@ -31,7 +44,7 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
   return (p)
 }
 
-
+#' Add roxygen documentation here
 general_sim <- function(num_child, param_matrix, distribution = "weibull", months){
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
   
@@ -140,7 +153,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   return(sim_data)
 }
 
-
+#' Add roxygen documentation here
 weibull_params <- function(low, high, periods){
   if (periods == 1){
     return (exp(mean(c(low,high))))
@@ -150,23 +163,32 @@ weibull_params <- function(low, high, periods){
   }
 }
 
-#THE FOLLOWING IS FOR 1 PERIOD
 
-#Building out parameter matrix. Eventually this needs to be a function.
+# Code Testing - One time period ------------------------------------------
+
+# Building out parameter matrix. Eventually this needs to be a function.
 shapes_k <- weibull_params(-1.5, -.5,1)
 scales_lam <- weibull_params(15, 17, 1)
-#matrix_params is a nxm matrix, where n is the number of periods, and m is the number of parameters in the distribution. 
+
+# matrix_params is a n x m matrix, where n is the number of periods, and m is the 
+# number of parameters in the distribution. 
 matrix_params <- cbind(scales_lam, shapes_k)
 
-sims <- general_sim(num_child = 10000, param_matrix = matrix_params, distribution = "weibull", months = 60)
+# Simulate data
+sims <- general_sim(num_child = 100000, param_matrix = matrix_params, distribution = "weibull", months = 60)
 
-# #Testing period 1 parameters.
+# Testing period 1 parameters.
 res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims, dist = "weibull")
 shape_1 <- 1/res_1$scale #Should be exp(-1) or .368
 scale_1 <- exp(coef(res_1)) #Should be exp(16) or 8886111
 
-#------------------------------------------------------
-#THE FOLLOWING IS FOR 5 PERIODS
+# Note from Taylor - okay to compare on the log scale! This actually isn't quite as close as I would have expected
+# it to be, even with 100,000 people
+shape_1
+log(scale_1) # should be roughly log(16)
+
+# Code Testing - Five time periods ----------------------------------------
+
 
 #Building out parameter matrix. Eventually this needs to be a function.
 shapes_k_5 <- weibull_params(low = -1.5, high = -.5, periods = 5)
