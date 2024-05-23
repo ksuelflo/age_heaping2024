@@ -5,6 +5,7 @@
 
 ## Load necessary packages up front
 library(survival)
+library(tidyverse)
 
 
 # Functions ---------------------------------------------------------------
@@ -30,9 +31,9 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     
     # The following if, else if, else statements handle populating `p` based on what distribution we choose. 
     if (distribution == "weibull"){
-      # p[low_index:high_index] <- (pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]) - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))/
-      #   (1 - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))
-      p[low_index:high_index] <- pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1])
+      p[low_index:high_index] <- (pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]) - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))/
+        (1 - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))
+      # p[low_index:high_index] <- pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1])
     }
     
     else if (distribution == "lognormal"){
@@ -200,6 +201,9 @@ weibull_params <- function(low, high, periods){
   if (periods == 1){
     return (exp(mean(c(low,high))))
   }
+  else if (low == high){
+    return (rep(exp(low), periods))
+  }
   else{
     return (exp(seq(low, high, (high-low)/(periods -1 ))))
   }
@@ -267,13 +271,13 @@ pweibull(60, shape = param_matrix[1,2], scale = param_matrix[1,1])
 # Code Testing - Five time periods ----------------------------------------
 
 #Building out parameter matrix. Eventually this needs to be a function.
-shapes_k_5 <- weibull_params(low = -1.5, high = -.5, periods = 5)
-scales_lam_5 <- weibull_params(low = 15, high = 17, periods = 5)
+shapes_k_5 <- weibull_params(low = -1.5, high = -1.5, periods = 5)
+scales_lam_5 <- weibull_params(low = 15, high = 15, periods = 5)
 #matrix_params is a nxm matrix, where n is the number of periods, and m is the number of parameters in the distribution. 
 matrix_params_5 <- cbind(scales_lam_5, shapes_k_5)
 
-sims_5 <- general_sim(num_child = 100, param_matrix = matrix_params_5, distribution = "weibull", months = 60)
-
+sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_params_5, distribution = "weibull", months = 60)
+view(sims_clean)
 #Removing all observations where the child is already dead (event == NA). Also removes observations where the child was born in a later period. (For example, if the child was born in period 5, the observations in periods 1 through 4 are removed.)
 sims_clean <- sims_5%>%
   mutate(keep_row = if_else(period == 5 |
@@ -283,6 +287,9 @@ sims_clean <- sims_5%>%
                               (period == 1 & birthdate < 61), TRUE, FALSE))%>%
   filter(keep_row)%>%
   na.omit(event)%>%
+  # filter(age_at_begin < 60)%>%
+  # mutate(event = if_else(t >= 60, 0, event),
+  #        t = if_else(t>60, 60, t))%>%
   select(-keep_row)
 
 #Data frames for each period, in order to test parameters.
@@ -326,3 +333,33 @@ scale_4 <- log(exp(coef(res_4))) #Should be exp(16.5) or 14650719 LOGGED 16.5
 res_5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
 shape_5 <- log(1/res_5$scale) #Should be exp(-.5) or .607 LOGGED -.5
 scale_5 <- log(exp(coef(res_5))) #Should be exp(17) or 24154953 LOGGED 17
+
+t <- rweibull(10000, shape = exp(.84), scale = exp(7.74))
+t[t<60]
+view(sims_clean_5)
+
+deaths <- sims_clean%>%
+  group_by(period)%>%
+  summarize(total_deaths = sum(event))%>%
+  pull(total_deaths)
+
+practice <- function(param_matrix){
+  periods <- nrow(param_matrix)
+  deaths <- rep(0,5)
+  for (i in 1:periods){
+    t <- rweibull(60000, shape = param_matrix[i,2], scale = param_matrix[i,1])
+    deaths[i] <- length(t[t<60])
+  }
+  return (deaths)
+}
+
+deaths_p <- practice(matrix_params_5)
+
+p_data <- data.frame(period = 1:5, sim_death = deaths, prac_death = deaths_p)
+
+p_data%>%
+  ggplot(aes(x = period))+
+  geom_point(aes(y = deaths), color = "blue")+
+  geom_point(aes(y = deaths_p))
+
+
