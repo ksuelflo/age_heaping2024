@@ -12,7 +12,7 @@ library(survival)
 #function to fill the vector of probabilities of death. 
 
 #' Add roxygen documentation here
-helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age){
+helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age, age_at_begin){
   
   # p is the vector we will populate. periods and len_period are helpful variables to have for later. 
   # Note from Taylor - what exactly is len_period? Could use more documentation here
@@ -30,6 +30,8 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     
     # The following if, else if, else statements handle populating `p` based on what distribution we choose. 
     if (distribution == "weibull"){
+      # p[low_index:high_index] <- (pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]) - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))/
+      #   (1 - pweibull(q = age_at_begin[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1]))
       p[low_index:high_index] <- pweibull(q = max_age[low_index:high_index], shape = param_matrix[i,2], scale = param_matrix[i,1])
     }
     
@@ -58,31 +60,33 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   birthdates <- rep(1:(months*periods), each = num_child*periods)
   period <- rep(1:periods, times = num_child*periods*months)
   max_age <- (months*period - birthdates) + 1
+  age_at_begin <- c(0,max_age)
+  age_at_begin[seq(periods+1, length(age_at_begin), periods)] <- 0
+  age_at_begin <- age_at_begin[-length(age_at_begin)]
   
   # Note from Taylor - put in a dataframe, easier to debug
   sim_df <- data.frame(id = ids,
              birthdate = birthdates,
              period = period,
-             max_age = max_age)
+             max_age = max_age,
+             age_at_begin = age_at_begin)
   
   # Filling p based on distribution.
   
-  p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age)
+  p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age, age_at_begin = age_at_begin)
   
   # Note from Taylor - add to dataframe, easier to debug
   sim_df$p <- p
   
   # returning this for debugging at this point
-  return(sim_df)
+  # return(sim_df)
   
   # This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" 
   # by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
   
   # Note from Taylor - should this be all zeros? Could you just do this the same way as you 
   # define t and event?
-  age_at_begin <- c(0,max_age)
-  age_at_begin[seq(periods+1, length(age_at_begin), periods)] <- 0
-  age_at_begin <- age_at_begin[-length(age_at_begin)]
+
   
   # these two columns will be iteratively populated in the for loop. T is time of event within period, 
   # event is a binary outcome, either 1 or 0.
@@ -185,9 +189,10 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   end <- Sys.time()
   print(start-end)
   
-  sim_data <- data.frame(id = ids, birthdate = birthdates, period = period, max_age = max_age, age_at_begin = age_at_begin, p = p, event = event, t = t)
+  sim_df$t <- t
+  sim_df$event <- event
   
-  return(sim_data)
+  return(sim_df)
 }
 
 #' Add roxygen documentation here
@@ -218,14 +223,11 @@ sims <- general_sim(num_child = 100000, # Note from Taylor - it'll take a while,
 
 # Testing period 1 parameters.
 res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims, dist = "weibull")
-shape_1 <- 1/res_1$scale #Should be exp(-1) or .368
-scale_1 <- exp(coef(res_1)) #Should be exp(16) or 8886111
+shape_1 <- log(1/res_1$scale) #Should be exp(-1) or .368 || LOGGED should be -1
+scale_1 <- log(exp(coef(res_1))) #Should be exp(16) or 8886111 || LOGGED should be 16
 
 # Note from Taylor - okay to compare on the log scale! This actually isn't quite as close as I would have expected
 # it to be, even with 100,000 people
-shape_1
-log(scale_1) # should be roughly 16
-
 
 # Note from Taylor - Just for an extra comparison, let's generate right-censored Weibull data without the function and
 # see if we get something similar
@@ -251,6 +253,7 @@ sims_2 <- general_sim(num_child = 10,
                       distribution = "weibull", 
                       months = 60)
 
+view(sims_2)
 # Note from Taylor - returned sim_df. Your probabilities seem to be incorrect for later time periods
 # For the first child (id == 1), you should have the following two pweibull() statements I believe:
 
@@ -301,25 +304,25 @@ sims_clean_5 <- sims_clean%>%
 
 #Testing period 1 parameters.
 res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_1, dist = "weibull")
-shape_1 <- 1/res_1$scale #Should be exp(-1.5) or .223
-scale_1 <- exp(coef(res_1)) #Should be exp(15) or 3269017
+shape_1 <- log(1/res_1$scale) #Should be exp(-1.5) or .223 LOGGED -1.5
+scale_1 <- log(exp(coef(res_1))) #Should be exp(15) or 3269017 LOGGED 15
 
 #Testing period 2 parameters.
 res_2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_2, dist = "weibull")
-shape_2 <- 1/res_2$scale #Should be exp(-1.25) or .287
-scale_2 <- exp(coef(res_2)) #Should be exp(15.5) or 5389698
+shape_2 <- log(1/res_2$scale) #Should be exp(-1.25) or .287 LOGGED -1.25
+scale_2 <- log(exp(coef(res_2))) #Should be exp(15.5) or 5389698 LOGGED 15.5
 
 #Testing period 3 parameters.
 res_3 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_3, dist = "weibull")
-shape_3 <- 1/res_3$scale #Should be exp(-1) or .368
-scale_3 <- exp(coef(res_3)) #Should be exp(16) or 8886111
+shape_3 <- log(1/res_3$scale) #Should be exp(-1) or .368 LOGGED -1
+scale_3 <- log(exp(coef(res_3))) #Should be exp(16) or 8886111 LOGGED 16
 
 #Testing period 4 parameters.
 res_4 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_4, dist = "weibull")
-shape_4 <- 1/res_4$scale #Should be exp(-.75) or .472
-scale_4 <- exp(coef(res_4)) #Should be exp(16.5) or 14650719
+shape_4 <- log(1/res_4$scale) #Should be exp(-.75) or .472 LOGGED -.75
+scale_4 <- log(exp(coef(res_4))) #Should be exp(16.5) or 14650719 LOGGED 16.5
 
 #Testing period 5 parameters.
 res_5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
-shape_5 <- 1/res_5$scale #Should be exp(-.5) or .607
-scale_5 <- exp(coef(res_5)) #Should be exp(17) or 24154953
+shape_5 <- log(1/res_5$scale) #Should be exp(-.5) or .607 LOGGED -.5
+scale_5 <- log(exp(coef(res_5))) #Should be exp(17) or 24154953 LOGGED 17
