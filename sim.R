@@ -6,6 +6,7 @@
 ## Load necessary packages up front
 library(survival)
 library(tidyverse)
+library(flexsurv)
 
 
 # Functions ---------------------------------------------------------------
@@ -32,8 +33,10 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
       if (max_age[i] > 60){
         max_age[i] <- 60
       }
+      
       p[i] <- (pweibull(q = max_age[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]) - pweibull(q = age_at_begin[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]))/
         (1 - pweibull(q = age_at_begin[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]))
+      
     }
     
     else if (distribution == "lognormal"){
@@ -247,7 +250,7 @@ shapes_k_2 <- weibull_params(low = -1.5, high = -.5, periods = 2)
 scales_lam_2 <- weibull_params(low = 15, high = 17, periods = 2)
 matrix_params_2 <- cbind(scales_lam_2, shapes_k_2)
 
-sims_2 <- general_sim(num_child = 1000, 
+sims_2 <- general_sim(num_child = 10000, 
                       param_matrix = matrix_params_2, 
                       distribution = "weibull", 
                       months = 60)
@@ -267,6 +270,9 @@ sims_2_1 <- sims_2_clean%>%
 sims_2_2 <- sims_2_clean%>%
   filter(period == 2)
 
+view(sims_2_2%>%
+       filter(t!= 60))
+
 res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_2_1, dist = "weibull")
 shape_1 <- log(1/res_1$scale) #Should be exp(-1) or .368 || LOGGED should be -1.5
 scale_1 <- log(exp(coef(res_1))) #Should be exp(16) or 8886111 || LOGGED should be 15
@@ -274,6 +280,9 @@ scale_1 <- log(exp(coef(res_1))) #Should be exp(16) or 8886111 || LOGGED should 
 res_2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_2_2, dist = "weibull")
 shape_2 <- log(1/res_2$scale) #Should be exp(-1) or .368 || LOGGED should be -.5
 scale_2 <- log(exp(coef(res_2))) #Should be exp(16) or 8886111 || LOGGED should be 17
+
+res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = sims_2_2, dist = "weibull")
+res$coefficients
 
 # Code Testing - Five time periods ----------------------------------------
 
@@ -341,3 +350,8 @@ scale_4 <- log(exp(coef(res_4))) #Should be 15.5
 res_5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
 shape_5 <- log(1/res_5$scale) #Should be -1
 scale_5 <- log(exp(coef(res_5))) #Should be 16
+
+res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = sims_clean_2, dist = "weibull")
+res$coefficients
+
+res5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
