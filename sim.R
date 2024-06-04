@@ -13,15 +13,19 @@ library(flexsurv)
 
 #function to fill the vector of probabilities of death. 
 
-#' Add roxygen documentation here
-helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age, age_at_begin, ids){
+#' @description
+#' This function is used to generate the probability of a child dying, given the parameters provided. It is used within the 
+#' `general_sim()` function.
+#' @inheritParams general_sim()
+#' @param max_age is a vector of the maximum age a child can live for each child at each period.
+#' @param age_at_begin is a vector of the age at the beginning of each period for each child.
+#' @return a vector of probabilities of death for each child for each period.
+helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
   
-  # p is the vector we will populate. periods and len_period are helpful variables to have for later. 
-  # Note from Taylor - what exactly is len_period? Could use more documentation here
+  # p is the vector we will populate. It is the same length as max_age, age_at_begin, etc. (We will be putting it in a data frame with them!)
   periods <- nrow(param_matrix)
-  len_period <- num_child*months*periods
   curr_period <- 1
-  p <- rep(0, periods*len_period)
+  p <- rep(0, length(max_age))
   
   for (i in seq_along(age_at_begin)){
     
@@ -31,15 +35,7 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     }
     
     if (distribution == "weibull"){
-      #Added this if statement: My thought is, if the max_age is greater than 60, then we should just cap it at 60. Otherwise, 
-      #the probability `p` is higher than it should be, as it includes the chance of dying from 60 to max_age. Since we
-      #are censoring at 60, this does not make sense to have. HOWEVER, this only exacerbates the difference between the recovered parameters
-      #and the actual parameters for periods after period 1. 
-      
-      #Commented out in order to remove censoring.
-      if (max_age[i] > 60){
-        max_age[i] <- 60
-      }
+      #Conditional probability p: p(death now till max_age in time period) - p(death from 0 - age_at_begin) / p(survived up until age_at_begin.)
       
       p[i] <- (pweibull(q = max_age[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]) - pweibull(q = age_at_begin[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]))/
         (1 - pweibull(q = age_at_begin[i], shape = param_matrix[curr_period,2], scale = param_matrix[curr_period,1]))
@@ -47,41 +43,50 @@ helper_fill_p <- function(distribution, param_matrix, num_child, months, max_age
     }
     
     else if (distribution == "lognormal"){
-      #Use plnorm
+      #Conditional probability p: p(death now till max_age in time period) - p(death from 0 - age_at_begin) / p(survived up until age_at_begin.)
+      
+      p[i] <- (plnorm(q = max_age[i], meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period, 2]) - plnorm(q = age_at_begin[i], meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period, 2]))/
+        (1 - plnorm(q = age_at_begin[i], meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period, 2]))
     }
     
-    else{
-      #Use pgengamma
-    }
     curr_period <- curr_period + 1
-    
-    # In the if statement below this one, we check if the next observation has an age_at_begin of 0, 
-    # essentially checking if the next observation is a new child. This if statement is included so there 
-    # is not an index out of bounds error on the final observation.
-    # if (i == length(age_at_begin)){
-    #   break
-    # }
-    # 
-    # # Checks if the next observation is a new child. If it is, reset the curr_period to 1.
-    # if (ids[i+1] != ids[i]){
-    #   curr_period <- 1
-    # }
     
   }
   return (p)
 
 }
 
-#' Add roxygen documentation here
-general_sim <- function(num_child, param_matrix, distribution = "weibull", months){
+#' @description
+#' This function simulates the mortality of children starting at age 0.
+#' @param distribution Takes values of either "weibull" or "lognormal".
+#' @param param_matrix Takes in a matrix, which has 3 columns. The first column is for `mulog` or `shape`, and the second column is for
+#' `sdlog` or `scale`. These are the parameters for the "lognormal" or "weibull" distributions, respectively. The 3rd column is for the
+#' number of months in each period. Each row represents a period. 
+#' @param num_child Is the number of children that are born on the first day of each month within each period. 
+#' @return A data frame where each row corresponds to a child, with information on whether or not they died in the time period, amongst
+#' other things.
+#' 
+#' 
+general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
   
+  months <- param_matrix[,3]
   periods <- nrow(param_matrix)
-  ids <- rep(1:(num_child*periods*months), each = periods)
-  birthdates <- rep(1:(months*periods), each = num_child*periods)
-  period <- rep(1:periods, times = num_child*periods*months)
-  max_age <- (months*period - birthdates) + 1
+  # ids <- rep(1:(num_child*periods*months), each = periods)
+  ids <- rep(1:(sum(num_child*months)), each = periods)
+  # birthdates <- rep(1:(months*periods), each = num_child*periods)
+  birthdates <- rep(1:(sum(months)), each = num_child*periods)
+  # period <- rep(1:periods, times = num_child*periods*months)
+  period <- rep(1:periods, times = num_child*sum(months))
+  # max_age <- (months*period - birthdates) + 1
+  max_age <- rep(0, length(period))
+  
+  for (i in seq_along(period)){
+    total_months <- sum(months[1:period[i]])
+    max_age[i] <- total_months - birthdates[i] + 1
+  }
+  
   max_age[max_age < 0] <- 0
   age_at_begin <- c(0,max_age)
   age_at_begin[seq(periods+1, length(age_at_begin), periods)] <- 0
@@ -98,13 +103,13 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
              age_at_begin = age_at_begin)
 
   # Filling p based on distribution.
-  p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, num_child = num_child, months = months, max_age = max_age, age_at_begin = age_at_begin, ids = ids)
+  p <-helper_fill_p(distribution = distribution, param_matrix = param_matrix, max_age = max_age, age_at_begin = age_at_begin)
   
   # Note from Taylor - add to dataframe, easier to debug
   sim_df$p <- p
   
   # returning this for debugging at this point
-  # return(sim_df)
+  return(sim_df)
   
   # This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" 
   # by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
@@ -155,11 +160,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
         }
         
         else if (distribution == "lognormal"){
-          time <- 0
-        }
-        
-        else{
-          time <- 0
+          time <- rlnorm(n = 1, meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period,2])
         }
         
         #We continue randomly sampling deaths until the time of death falls within the age at beginning and max_age of the time period. 
@@ -170,11 +171,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
           }
           
           else if (distribution == "lognormal"){
-            time <- 0
-          }
-          
-          else{
-            time <- 0
+            time <- rlnorm(n = 1, meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period,2])
           }
           
         }
@@ -225,19 +222,6 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull", month
   return(sim_df)
 }
 
-#' Add roxygen documentation here
-weibull_params <- function(low, high, periods){
-  if (periods == 1){
-    return (exp(mean(c(low,high))))
-  }
-  else if (low == high){
-    return (rep(exp(low), periods))
-  }
-  else{
-    return (exp(seq(low, high, (high-low)/(periods -1 ))))
-  }
-}
-
 #' @description
 #' This function simulates the phenomenon of age heaping in child mortality. It takes in a data frame of child mortality data, generated
 #' from the `general_sim` function. It then randomly chooses deaths around specific ages of death to "heap" at a round number. This is
@@ -245,31 +229,47 @@ weibull_params <- function(low, high, periods){
 #' the heap are all parameters, `range_heap`, `ages_at_heaping`, `proportion_heap` respectively.
 #' 
 #' @param ages_at_heaping a vector of ages, in months, that represent ages where deaths will be artificially clumped at. 
-#' @param proportion_heap a vector of proportions. Each index is the probability of being chosen to 
-#' @param range_heap
-#' @param sim_data 
+#' @param proportion_heap a vector of proportions. Each index is the probability that a death will be heaped at the `ages_at_heaping` age.
+#' @param range_heap a matrix where each row corresponds to one age where deaths will be heaped. The 1st column of that row is the bottom
+#' of the range, and 2nd column is the top of the range. So if the row is (2,3) and the age we heap at is 6, then the full range is 4,9. 
+#' Children who die in this range will be eligible for the ages to be heaped to 6 months.
+#' @param sim_data A data frame which results from calling `general_sim()`.
 #' 
-#' @returns description
+#' @returns A data frame, which is a modified version of `sim_data`, where some deaths have been moved to be heaped at certain ages. 
 sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data){
-  
+   
+  #Time and event for each observation. 
   times <- sim_data%>%pull(t)
   events <- sim_data%>%pull(event)
+  #Emptu container with which to put intervals into. 
   intervals <- vector("list", length = length(ages_at_heaping))
+  #empty vector, which will be populated with a binomial distribution: Either the observation will have their time at event heaped, or
+  #it won't. 
   indicators <- rep(0, length(times))
   
+  #Looping through each age to build out the interval at which observations are eligible to be heaped. 
   for (i in seq_along(ages_at_heaping)){
     intervals[[i]] <- c(ages_at_heaping[i] - range_heap[i,1], ages_at_heaping[i] + range_heap[i,2])
   }
   
+  #looping through each observation.
   for (i in seq_along(times)){
     
+    #If they didn't die, then we don't need to worry about age heaping, and can move to the next observation.
     if (events[i] == 0){
       next
     }
     
+    #Looping through each age at which we heap observations. 
     for (j in seq_along(ages_at_heaping)){
+      
+      #If the time of death is within the interval to be eligible to be heaped:
       if (intervals[[j]][1] <= times[i] & times[i] <= intervals[[j]][2]){
+        
+        #randomly sample the chance of being heaped
         indicators[i] <- rbinom(1,1,proportion_heap[j])
+        
+        #Heap them if they were sampled, otherwise keep their time of death the same.
         times[i] <- ifelse(indicators[i] == 1, ages_at_heaping[j], times[i])
         break
       }
@@ -282,195 +282,122 @@ sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data)
   return (sim_data)
 }
 
-example_sim <- general_sim(num_child = 1000, # Note from Taylor - it'll take a while, but I want you to try this with an even bigger number. Add another zero, and see if you get closer to the "truth"
+#'@description
+#'Recovers the parameters for a specified distribution using the `survival` package and the `flexsurv` package. This function cleans the 
+#'data, and then recovers the parameters.
+#'@param sims A data frame generated from the `general_sim()` function. The output from `general_sim()` can be put directly into this
+#'function.
+#'@param parameters A matrix of the parameters used to generate `sims`. Used in this function to be columns in the returned data frame, 
+#'as a means to compare the recovered parameters to the true parameters.
+#'@param distribution A distribution: can either be Weibull, lognormal, or gengamma.
+#'
+#'@returns A data frame with the recovered parameters and the true parameters as columns, and each row representing a unique period. 
+recover_params <- function(sims, parameters, distribution = "weibull"){
+  
+  periods <- nrow(parameters)
+  period <- 1:periods
+  param_1 <- rep(0, periods)
+  param_2 <- rep(0, periods)
+  
+  for (i in 1:nrow(parameters)){
+    #cleaned data: filters to only the current period, removed observations which have already died, and removed observations which
+    #haven't been born yet. 
+    curr_period_data <- sims%>%
+      filter(period == i,
+             !is.na(event),
+             t != 0)
+    
+    #If it is the first time period, we don't need to use `flexsurv`, instead just using the `survival` package. 
+    if (i == 1){
+      res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = curr_period_data, dist = distribution)
+      
+      if (distribution == "lognormal"){
+        param_1[i] <- coef(res)
+        param_2[i] <- res$scale
+      }
+      
+      else if (distribution == "weibull"){
+        param_1[i] <- log(1/res$scale)
+        param_2[i] <- coef(res)   
+      }
+      
+    }
+    
+    #If it is not the first time period, then we need to use `flexsurv`. 
+    else{
+      res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = curr_period_data, dist = distribution)
+      param_1[i] <- res$coefficients[1]
+      param_2[i] <- res$coefficients[2]
+    }
+    
+  }
+  
+  if (distribution == "weibull"){
+    return (data.frame(period = period, rec_shape = param_1, shape = log(parameters[,2]), rec_scale = param_2, scale = log(parameters[,1])))
+  }
+  else if (distribution == "lognormal"){
+    return (data.frame(period = period, rec_mu = param_1, mu = parameters[,2], rec_sigma = param_2, sigma = log(parameters[,1])))
+  }
+
+}
+
+#-------------------------------------------------
+
+#sim_age_heap TEST
+
+shapes_k <- c(-1,-1)
+scales_lam <- c(12,15)
+period_length <- c(60,60)
+matrix_params <- cbind(exp(scales_lam), exp(shapes_k), period_length)
+
+example_sim <- general_sim(num_child = 1000, 
                            param_matrix = matrix_params, 
-                           distribution = "weibull", 
-                           months = 60)
+                           distribution = "weibull")
 
 ages <- c(6, 12)
 proportions <- c(.5,.5)
 ranges <- rbind(c(2,3), c(4,5))
 age_heap_df <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportions, range_heap = ranges, sim_data = example_sim)
 
-recover_params <- function(sims, parameters, distribution){
-  periods <- nrow(parameters)
-  period <- 1:periods
-  rec_shapes <- rep(0, periods)
-  rec_scales <- rep(0, periods)
-  
-  for (i in 1:nrow(parameters)){
-    
-    curr_period_data <- sims%>%
-      filter(period == i,
-             !is.na(event),
-             t != 0)
-    
-    if (i == 1){
-      res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = curr_period_data, dist = "weibull")
-      rec_shapes[i] <- log(1/res$scale)
-      rec_scales[i] <- coef(res)
-    }
-    
-    else{
-      res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = curr_period_data, dist = "weibull")
-      rec_shapes[i] <- res$coefficients[1]
-      rec_scales[i] <- res$coefficients[2]
-    }
-    
-  }
-  
-  return (data.frame(period = period, rec_shape = rec_shapes, shape = log(parameters[,2]), rec_scale = rec_scales, scale = log(parameters[,1])))
+#-------------------------------------------------
 
-}
-
-#five periods
+#five periods TEST
 
 shapes <- c(-1.2, -1.1,-1,-.9, -.8)
 scales <- c(8,9,10,11, 12)
-matrix_dist <- cbind(exp(scales), exp(shapes))
+period_length <- c(10,20,30,40,50)
+matrix_dist <- cbind(exp(scales), exp(shapes), period_length)
 
-sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_dist, distribution = "weibull", months = 60)
+sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_dist, distribution = "weibull")
 
-params_recovered_df <- recover_params(sims = sims_5, parameters = matrix_dist, distribution == "weibull")
+params_recovered_df <- recover_params(sims = sims_5, parameters = matrix_dist, distribution = "weibull")
 
-view(params_recovered_df)
+#--------------------------------------------------
 
-#two periods
+#two periods TEST
 
 shapes_k <- c(-1,-1)
 scales_lam <- c(12,15)
-matrix_params <- cbind(exp(scales_lam), exp(shapes_k))
+period_length <- c(60,60)
+matrix_params <- cbind(exp(scales_lam), exp(shapes_k), period_length)
 
-sims_2 <- general_sim(num_child = 1000, param_matrix = matrix_params, distribution = "weibull", months = 60)
+sims_2 <- general_sim(num_child = 1000, param_matrix = matrix_params, distribution = "weibull")
 
 params_2_recover <- recover_params(sims = sims_2, parameters = matrix_params, distribution == "weibull")
-view(params_2_recover)
 
-# Code Testing - One time period ------------------------------------------
+#--------------------------------------------------
 
-# Building out parameter matrix. Eventually this needs to be a function.
-shapes_k <- weibull_params(-1.5, -.5,1)
-scales_lam <- weibull_params(15, 17, 1)
+#one period TEST
 
-# matrix_params is a n x m matrix, where n is the number of periods, and m is the 
-# number of parameters in the distribution. 
-matrix_params <- cbind(scales_lam, shapes_k)
+shape_k <- -1
+scale_lam <- 12
+period_length <- 60
+matrix_weib <- cbind(exp(scale_lam), exp(shape_k), period_length)
 
-# Simulate data
-sims <- general_sim(num_child = 100000, # Note from Taylor - it'll take a while, but I want you to try this with an even bigger number. Add another zero, and see if you get closer to the "truth"
-                    param_matrix = matrix_params, 
-                    distribution = "weibull", 
-                    months = 60)
+sim_1 <- general_sim(num_child = 10000, param_matrix = matrix_params, distribution = "weibull")
+params_1_recover <- recover_params(sims = sim_1, parameters = matrix_weib, distribution == "weibull")
 
-# Testing period 1 parameters.
-res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims, dist = "weibull")
-shape_1 <- log(1/res_1$scale) #Should be exp(-1) or .368 || LOGGED should be -1
-scale_1 <- log(exp(coef(res_1))) #Should be exp(16) or 8886111 || LOGGED should be 16
 
-# Code Testing - Two time periods -----------------------------------------
 
-shapes_k_2 <- weibull_params(low = -1.5, high = -.5, periods = 2)
-scales_lam_2 <- weibull_params(low = 15, high = 17, periods = 2)
-matrix_params_2 <- cbind(scales_lam_2, shapes_k_2)
 
-sims_2 <- general_sim(num_child = 10000, 
-                      param_matrix = matrix_params_2, 
-                      distribution = "weibull", 
-                      months = 60)
 
-sims_2_clean <- sims_2%>%
-  mutate(keep_row = if_else((period == 2 & birthdate < 121) |(period == 1 & birthdate < 61), TRUE, FALSE))%>%
-  filter(keep_row)%>%
-  na.omit(event)%>%
-  filter(age_at_begin < 60)%>%
-  mutate(event = if_else(t >= 60, 0, event),
-         t = if_else(t>60, 60, t))%>%
-  select(-keep_row)
-
-sims_2_1 <- sims_2_clean%>%
-  filter(period == 1)
-
-sims_2_2 <- sims_2_clean%>%
-  filter(period == 2)
-
-res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_2_1, dist = "weibull")
-shape_1 <- log(1/res_1$scale) #Should be exp(-1) or .368 || LOGGED should be -1.5
-scale_1 <- log(exp(coef(res_1))) #Should be exp(16) or 8886111 || LOGGED should be 15
-
-res_2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_2_2, dist = "weibull")
-shape_2 <- log(1/res_2$scale) #Should be exp(-1) or .368 || LOGGED should be -.5
-scale_2 <- log(exp(coef(res_2))) #Should be exp(16) or 8886111 || LOGGED should be 17
-
-res_flex <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event, type = "counting") ~ 1, data = sims_2_2, dist = "weibull")
-res_flex$coefficients
-# Code Testing - Five time periods ----------------------------------------
-
-#Building out parameter matrix. Eventually this needs to be a function.
-shapes_k_5 <- weibull_params(low = -2, high = -1, periods = 5)
-scales_lam_5 <- weibull_params(low = 14, high = 16, periods = 5)
-#matrix_params is a nxm matrix, where n is the number of periods, and m is the number of parameters in the distribution. 
-matrix_params_5 <- cbind(scales_lam_5, shapes_k_5)
-
-sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_params_5, distribution = "weibull", months = 60)
-
-#Removing all observations where the child is already dead (event == NA). Also removes observations where the child was born in a later period. (For example, if the child was born in period 5, the observations in periods 1 through 4 are removed.)
-sims_clean <- sims_5%>%
-  mutate(keep_row = if_else(period == 5 |
-                              (period == 4 & birthdate < 241) |
-                              (period == 3 & birthdate < 181) |
-                              (period == 2 & birthdate < 121) |
-                              (period == 1 & birthdate < 61), TRUE, FALSE))%>%
-  filter(keep_row)%>%
-  na.omit(event)%>%
-  #Code to omit children who are already past the 5 year mark when a time period began. Also, censors both t and event at 60 months.
-  filter(age_at_begin < 60)%>%
-  mutate(event = if_else(t >= 60, 0, event),
-         t = if_else(t>60, 60, t))%>%
-  select(-keep_row)
-
-#Data frames for each period, in order to test parameters.
-
-sims_clean_1 <- sims_clean%>%
-  filter(period == 1)
-
-sims_clean_2 <- sims_clean%>%
-  filter(period == 2)
-
-sims_clean_3 <- sims_clean%>%
-  filter(period == 3)
-
-sims_clean_4 <- sims_clean%>%
-  filter(period == 4)
-
-sims_clean_5 <- sims_clean%>%
-  filter(period == 5)
-
-#Testing period 1 parameters.
-res_1 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_1, dist = "weibull")
-shape_1 <- log(1/res_1$scale) #Should be -2
-scale_1 <- log(exp(coef(res_1))) #Should 14
-
-#Testing period 2 parameters.
-res_2 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_2, dist = "weibull")
-shape_2 <- log(1/res_2$scale) #Should be -1.75
-scale_2 <- log(exp(coef(res_2))) #Should be 14.5
-
-#Testing period 3 parameters.
-res_3 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_3, dist = "weibull")
-shape_3 <- log(1/res_3$scale) #Should be -1.5
-scale_3 <- log(exp(coef(res_3))) #Should be 15
-
-#Testing period 4 parameters.
-res_4 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_4, dist = "weibull")
-shape_4 <- log(1/res_4$scale) #Should be -1.25
-scale_4 <- log(exp(coef(res_4))) #Should be 15.5
-
-#Testing period 5 parameters.
-res_5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
-shape_5 <- log(1/res_5$scale) #Should be -1
-scale_5 <- log(exp(coef(res_5))) #Should be 16
-
-res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = sims_clean_2, dist = "weibull")
-res$coefficients
-
-res5 <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = sims_clean_5, dist = "weibull")
