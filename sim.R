@@ -11,14 +11,14 @@ library(flexsurv)
 
 # Functions ---------------------------------------------------------------
 
-#function to fill the vector of probabilities of death. 
-
 #' @description
 #' This function is used to generate the probability of a child dying, given the parameters provided. It is used within the 
 #' `general_sim()` function.
+#' 
 #' @inheritParams general_sim()
 #' @param max_age is a vector of the maximum age a child can live for each child at each period.
 #' @param age_at_begin is a vector of the age at the beginning of each period for each child.
+#' 
 #' @return a vector of probabilities of death for each child for each period.
 helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
   
@@ -58,15 +58,17 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
 
 #' @description
 #' This function simulates the mortality of children starting at age 0.
+#' 
 #' @param distribution Takes values of either "weibull" or "lognormal".
 #' @param param_matrix Takes in a matrix, which has 3 columns. The first column is for `mulog` or `shape`, and the second column is for
 #' `sdlog` or `scale`. These are the parameters for the "lognormal" or "weibull" distributions, respectively. The 3rd column is for the
 #' number of months in each period. Each row represents a period. 
 #' @param num_child Is the number of children that are born on the first day of each month within each period. 
+#' 
 #' @return A data frame where each row corresponds to a child, with information on whether or not they died in the time period, amongst
 #' other things.
 #' 
-#' 
+
 general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
@@ -285,6 +287,7 @@ sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data)
 #'@description
 #'Recovers the parameters for a specified distribution using the `survival` package and the `flexsurv` package. This function cleans the 
 #'data, and then recovers the parameters.
+#'
 #'@param sims A data frame generated from the `general_sim()` function. The output from `general_sim()` can be put directly into this
 #'function.
 #'@param parameters A matrix of the parameters used to generate `sims`. Used in this function to be columns in the returned data frame, 
