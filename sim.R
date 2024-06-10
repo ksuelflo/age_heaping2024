@@ -110,9 +110,6 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   # Note from Taylor - add to dataframe, easier to debug
   sim_df$p <- p
   
-  # returning this for debugging at this point
-  return(sim_df)
-  
   # This column (age_at_begin) is useful for the for loop: Essentially this allows me to "group_by" 
   # by checking if the age is 0. If it is, then I know it is a new child and to reset the boolean `already_died`
   
@@ -123,8 +120,8 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   # these two columns will be iteratively populated in the for loop. T is time of event within period, 
   # event is a binary outcome, either 1 or 0.
   
-  t <- rep(0, num_child*periods*months*periods)
-  event <- rep(0, num_child*periods*months*periods)
+  t <- rep(0, num_child*sum(months)*periods)
+  event <- rep(0, num_child*sum(months)*periods)
 
   # for loop that runs binomial using probability p, and if they die, then simulates an appropriate time. 
   # If not, t is equal to max age and event is equal to 0. 
@@ -295,7 +292,7 @@ sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data)
 #'@param distribution A distribution: can either be Weibull, lognormal, or gengamma.
 #'
 #'@returns A data frame with the recovered parameters and the true parameters as columns, and each row representing a unique period. 
-recover_params <- function(sims, parameters, distribution = "weibull"){
+recover_params <- function(sims, parameters, distribution){
   
   periods <- nrow(parameters)
   period <- 1:periods
@@ -315,8 +312,8 @@ recover_params <- function(sims, parameters, distribution = "weibull"){
       res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = curr_period_data, dist = distribution)
       
       if (distribution == "lognormal"){
-        param_1[i] <- coef(res)
-        param_2[i] <- res$scale
+        param_1[i] <- res$scale
+        param_2[i] <- coef(res)
       }
       
       else if (distribution == "weibull"){
@@ -339,7 +336,7 @@ recover_params <- function(sims, parameters, distribution = "weibull"){
     return (data.frame(period = period, rec_shape = param_1, shape = log(parameters[,2]), rec_scale = param_2, scale = log(parameters[,1])))
   }
   else if (distribution == "lognormal"){
-    return (data.frame(period = period, rec_mu = param_1, mu = parameters[,2], rec_sigma = param_2, sigma = log(parameters[,1])))
+    return (data.frame(period = period, rec_mu = param_2, mu = parameters[,1], rec_sigma = param_1, sigma = parameters[,2]))
   }
 
 }
@@ -366,6 +363,8 @@ age_heap_df <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportion
 
 #five periods TEST
 
+#Weibull test
+
 shapes <- c(-1.2, -1.1,-1,-.9, -.8)
 scales <- c(8,9,10,11, 12)
 period_length <- c(10,20,30,40,50)
@@ -375,9 +374,22 @@ sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_dist, distribution
 
 params_recovered_df <- recover_params(sims = sims_5, parameters = matrix_dist, distribution = "weibull")
 
+#Lognormal test
+
+mus <- c(15,16,17,18,19)
+sigmas <- c(2.1,2.2,2.3,2.2,2.1)
+period_length <- c(60,60,60,60,60)
+
+matrix_lnorm <- cbind(mus, sigmas, period_length)
+
+sim_5_ln <- general_sim(num_child = 1000, param_matrix = matrix_lnorm, distribution = "lognormal")
+
+params_5_ln_recover <- recover_params(sims = sim_5_ln, parameters = matrix_lnorm, distribution = "lognormal")
 #--------------------------------------------------
 
 #two periods TEST
+
+#Weibull Test
 
 shapes_k <- c(-1,-1)
 scales_lam <- c(12,15)
@@ -388,19 +400,37 @@ sims_2 <- general_sim(num_child = 1000, param_matrix = matrix_params, distributi
 
 params_2_recover <- recover_params(sims = sims_2, parameters = matrix_params, distribution == "weibull")
 
+#lognormal test
+
+mus <- c(15,20)
+sigmas <- c(2.1,2.2)
+period_length <- c(60,60)
+
+matrix_lnorm <- cbind(mus, sigmas, period_length)
+
+sim_2_ln <- general_sim(num_child = 1000, param_matrix = matrix_lnorm, distribution = "lognormal")
+
+params_2_ln_recover <- recover_params(sims = sim_2_ln, parameters = matrix_lnorm, distribution = "lognormal")
 #--------------------------------------------------
 
 #one period TEST
+
+#Weibull Test
 
 shape_k <- -1
 scale_lam <- 12
 period_length <- 60
 matrix_weib <- cbind(exp(scale_lam), exp(shape_k), period_length)
 
-sim_1 <- general_sim(num_child = 10000, param_matrix = matrix_params, distribution = "weibull")
-params_1_recover <- recover_params(sims = sim_1, parameters = matrix_weib, distribution == "weibull")
+sim_1 <- general_sim(num_child = 10000, param_matrix = matrix_weib, distribution = "weibull")
+params_1_recover <- recover_params(sims = sim_1, parameters = matrix_weib, distribution = "weibull")
 
+#Lognormal test
 
+mu <- 18
+sigma <- 2.2
+period_length <- 60
+matrix_lnorm <- cbind(mu, sigma, period_length)
 
-
-
+sim_1_ln <- general_sim(num_child = 10000, param_matrix = matrix_lnorm, distribution = "lognormal")
+params_1_ln_recover <- recover_params(sims = sim_1_ln, parameters = matrix_lnorm, distribution = "lognormal")
