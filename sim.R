@@ -7,6 +7,8 @@
 library(survival)
 library(tidyverse)
 library(flexsurv)
+library(devtools)
+
 
 
 # Functions ---------------------------------------------------------------
@@ -377,7 +379,7 @@ params_recovered_df <- recover_params(sims = sims_5, parameters = matrix_dist, d
 #Lognormal test
 
 mus <- c(15,16,17,18,19)
-sigmas <- c(2.1,2.2,2.3,2.2,2.1)
+sigmas <- exp(c(2.1,2.2,2.3,2.2,2.1))
 period_length <- c(60,60,60,60,60)
 
 matrix_lnorm <- cbind(mus, sigmas, period_length)
@@ -402,17 +404,18 @@ params_2_recover <- recover_params(sims = sims_2, parameters = matrix_params, di
 
 #lognormal test
 
-mus <- c(15,20)
-sigmas <- c(2.1,2.2)
+mus <- c(11.44, 11.44)
+sigmas <- exp(c(1.8,1.8))
 period_length <- c(60,60)
 
 matrix_lnorm <- cbind(mus, sigmas, period_length)
 
 sim_2_ln <- general_sim(num_child = 1000, param_matrix = matrix_lnorm, distribution = "lognormal")
-
+view(sim_2_ln)
 params_2_ln_recover <- recover_params(sims = sim_2_ln, parameters = matrix_lnorm, distribution = "lognormal")
 #--------------------------------------------------
 
+plnorm()
 #one period TEST
 
 #Weibull Test
@@ -427,10 +430,11 @@ params_1_recover <- recover_params(sims = sim_1, parameters = matrix_weib, distr
 
 #Lognormal test
 
-mu <- 18
-sigma <- 2.2
+mu <- 11.44
+sigma <- exp(1.8)
 period_length <- 60
 matrix_lnorm <- cbind(mu, sigma, period_length)
 
 sim_1_ln <- general_sim(num_child = 10000, param_matrix = matrix_lnorm, distribution = "lognormal")
+
 params_1_ln_recover <- recover_params(sims = sim_1_ln, parameters = matrix_lnorm, distribution = "lognormal")

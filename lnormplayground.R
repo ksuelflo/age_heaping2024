@@ -23,10 +23,23 @@ for (i in seq_along(paths)){
   print(str_c(countries[i], " ", years[i], " was successful."))
 }
 
+raw_data <- read.dta13(paths[1])
+cleaned_data <- format_dhs(df = raw_data, survey_year = years[1], period_boundaries = intervals[[1]])
+res <- surv_synthetic(cleaned_data, household = "household", strata = "strata", cluster = "cluster", weights = "weights", dist = "lognormal", numerical_grad = TRUE)
+dfs[[1]] <- res$result
+
+raw <- read.dta13("../data/Burkina_Faso_2010/BFBR62FL.DTA")
+clean <- format_dhs(df = raw, survey_year = 2010, period_boundaries = c(2005,2010))
+res <- surv_synthetic(clean, household = "household", strata = "strata", cluster = "cluster", weights = "weights", dist = "lognormal", numerical_grad = TRUE)
+
+res$result
+
 for (i in seq_along(dfs)){
   mus[i] <- dfs[[i]]$mu_mean
   sigmas[i] <- dfs[[i]]$log_sigma_mean
 }
+
+
 
 params_DHS <- data.frame(Country = countries, Year = years, mu = mus, sigma = sigmas)
 view(params_DHS)
