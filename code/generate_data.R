@@ -3,16 +3,16 @@ library(tidyverse)
 #Ages at heap, ranges, and proportions are all split up into two columns. This makes things easier. 
 
 lnorm_mean_vec <- c(15,20)
-lnorm_sd_vec <- c(2,2.1,2.2)
+lnorm_sd_vec <- c(2,2.2)
 sample_size_vec <- c(1000,5000)
 age_1_vec <- 12
-age_2_vec <- c(NA, 6,24,60)
+age_2_vec <- c(NA, 6,60)
 range_1_vec <- c("9,21", "6,18", "8,24")
 range_2_vec <- c("3,9", "21,27", "57, 63")
-period_length_vec <- c(12, 60)
+period_length_vec <- c(12)
 periods_vec <- 5
-proportion_1_vec <- c(.01,.05,.1,.2)
-proportion_2_vec <- c(.01,.05,.1,.2)
+proportion_1_vec <- c(.01,.05,.1)
+proportion_2_vec <- c(.01,.05,.1)
 
 
 
@@ -26,6 +26,8 @@ clean_params <- raw_expand%>%
          proportion_2 = if_else(is.na(age_2), NA, proportion_2))
 
 nrow(clean_params)
+
+
 
 
 
