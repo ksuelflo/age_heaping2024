@@ -8,6 +8,8 @@ library(survival)
 library(tidyverse)
 library(flexsurv)
 library(devtools)
+library(knitr)
+library(pssst)
 
 
 
@@ -31,11 +33,6 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
   
   for (i in seq_along(age_at_begin)){
     
-    if (curr_period == periods){
-      curr_period <- 1
-      next
-    }
-    
     if (distribution == "weibull"){
       #Conditional probability p: p(death now till max_age in time period) - p(death from 0 - age_at_begin) / p(survived up until age_at_begin.)
       
@@ -51,6 +48,9 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
         (1 - plnorm(q = age_at_begin[i], meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period, 2]))
     }
     
+    if (curr_period == periods){
+      curr_period <- 0
+    }
     curr_period <- curr_period + 1
     
   }
@@ -97,7 +97,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   age_at_begin <- age_at_begin[-length(age_at_begin)]
   
   #FOR NO CENSORING: This sets the max age for the last time period to be infinite (100000000).
-  max_age[period == periods] <- Inf
+  # max_age[period == periods] <- Inf
   
   # Note from Taylor - put in a dataframe, easier to debug
   sim_df <- data.frame(id = ids,
@@ -143,9 +143,9 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
       died <- ifelse(p[i] <= 0, 0, rbinom(n = 1,size = 1, p = p[i]))
       
       #If it is the last period, then everyone has to die! FOR NO CENSORING
-      if (curr_period == periods){
-        died <- 1
-      }
+      # if (curr_period == periods){
+      #   died <- 1
+      # }
       
       # If they died, sample the time of death until it falls within their age at the 
       # beginning of the period and the age at the end of the period. 
@@ -195,6 +195,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
     else{
       time <- max_age[i]
       event[i] <- NA
+      # event[i] <- 1
     }
     
     t[i] <- time
@@ -301,35 +302,58 @@ recover_params <- function(sims, parameters, distribution){
   param_1 <- rep(0, periods)
   param_2 <- rep(0, periods)
   
+  initial_clean_all <- sims%>%
+    mutate(event = if_else(t>60, 0, event),
+           t = if_else(t>60, 60, t))%>%
+    mutate(left_interval = case_when(t <= 1 ~ t,
+                                     t > 1 & t <= 24 ~ floor(t),
+                                     t > 24 & t <= 36 ~ 24,
+                                     t > 36 & t <= 48 ~ 36,
+                                     t > 48 ~ 48),
+           right_interval = case_when(t <= 1 ~ t,
+                                      t > 1 & t <= 24 ~ ceiling(t),
+                                      t > 24 & t <= 36 ~ 36,
+                                      t > 36 & t <= 48 ~ 48,
+                                      t > 48 ~ 60))
+    # mutate(left_interval = )
+  
+  inital_clean_survreg <- initial_clean_all%>%
+    filter(!is.na(event),
+           t != 0, 
+           period == 1,
+           age_at_begin<60)
+  
   for (i in 1:nrow(parameters)){
     #cleaned data: filters to only the current period, removed observations which have already died, and removed observations which
     #haven't been born yet. 
-    curr_period_data <- sims%>%
-      filter(period == i,
-             !is.na(event),
-             t != 0)
+    # curr_period_data <- initial_clean%>%
+    #   filter(period == i,
+    #          age_at_begin < 60)
+    # 
     
     #If it is the first time period, we don't need to use `flexsurv`, instead just using the `survival` package. 
-    if (i == 1){
-      res <- survreg(formula = Surv(time = t, event = event, type = "right") ~ 1, data = curr_period_data, dist = distribution)
-      
-      if (distribution == "lognormal"){
-        param_1[i] <- res$scale
-        param_2[i] <- coef(res)
-      }
-      
-      else if (distribution == "weibull"){
-        param_1[i] <- log(1/res$scale)
-        param_2[i] <- coef(res)   
-      }
-      
-    }
+    # if (i == 1){
+    #   res <- survreg(formula = Surv(time = left_interval, time2 = right_interval, event = event, type = "interval") ~ 1, data = curr_period_data, dist = distribution)
+    #   
+    #   if (distribution == "lognormal"){
+    #     param_1[i] <- coef(res)
+    #     param_2[i] <- res$scale
+    #   }
+    #   
+    #   else if (distribution == "weibull"){
+    #     param_1[i] <- log(1/res$scale)
+    #     param_2[i] <- coef(res)   
+    #   }
+    #   
+    # }
     
     #If it is not the first time period, then we need to use `flexsurv`. 
     else{
+      # res <- surv_synthetic(curr_period_data, survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = 60, I_i = 1, A_i = 1, t_i = 60, 
+      #                       t_0i = "left_interval", t_1i = "right_interval", dist = distribution, individual = id)
       res <- flexsurvreg(formula = Surv(time = age_at_begin, time2 = t, event = event) ~ 1, data = curr_period_data, dist = distribution)
       param_1[i] <- res$coefficients[1]
-      param_2[i] <- res$coefficients[2]
+      param_2[i] <- exp(res$coefficients[2])
     }
     
   }
@@ -338,10 +362,52 @@ recover_params <- function(sims, parameters, distribution){
     return (data.frame(period = period, rec_shape = param_1, shape = log(parameters[,2]), rec_scale = param_2, scale = log(parameters[,1])))
   }
   else if (distribution == "lognormal"){
-    return (data.frame(period = period, rec_mu = param_2, mu = parameters[,1], rec_sigma = param_1, sigma = parameters[,2]))
+    return (data.frame(period = period, rec_mu = param_1, mu = parameters[,1], rec_sigma = param_2, sigma = parameters[,2]))
   }
 
 }
+
+#NEW CLEANING/ RECOVER PARAMS FUNCTION
+recover_interval <- function(sims, parameters, distribution){
+  clean_df <- sims%>%
+    mutate(event = if_else(t>60, 0, event),
+           t = if_else(t>60, 60, t))%>%
+    mutate(left_interval = case_when(t <= 1 & event == 1 ~ t,
+                                     t > 1 & t <= 24 & event == 1 ~ floor(t),
+                                     t > 24 & t <= 36 & event == 1 ~ 24,
+                                     t > 36 & t <= 48 & event == 1 ~ 36,
+                                     t > 48 & event == 1~ 48, .default = 1000),
+           right_interval = case_when(t <= 1& event == 1 ~ t,
+                                      t > 1 & t <= 24 & event == 1~ ceiling(t),
+                                      t > 24 & t <= 36 & event == 1~ 36,
+                                      t > 36 & t <= 48 & event == 1~ 48,
+                                      t > 48 & event == 1~ 60, .default = 1000))%>%
+    mutate(event = replace_na(event, 1))%>%
+    group_by(id)%>%
+    mutate(interval_indicator = if_else(sum(event) >= 1, 1, 0),
+           right_censor_age = if_else(interval_indicator == 0, max(t), 1000))%>%
+    ungroup()%>%
+    mutate(period_length = 12,
+           across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%#Fix this to be generalizable once figure out how params df works.
+    mutate(age_at_begin = max_age- period_length)
+  
+  res <- surv_synthetic(df = clean_df, survey = FALSE, individual = "id", p = "p", a_pi = "age_at_begin", l_p = "period_length", I_i = "interval_indicator",
+                        A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval", t_1i = "right_interval", dist = "lognormal", numerical_grad = TRUE)
+  
+  return (res)
+}
+
+
+#TESTING RECOVER_INTERVAL()
+mus <- c(15,16,17,18,19)
+sigmas <- exp(c(2.1,2.2,2.3,2.2,2.1))
+period_length <- c(60,60,60,60,60)
+
+matrix_lnorm <- cbind(mus, sigmas, period_length)
+
+sim_5_ln <- general_sim(num_child = 100, param_matrix = matrix_lnorm, distribution = "lognormal")
+
+res <- recover_interval(sim_5_ln, matrix_lnorm, "lognormal")
 
 #-------------------------------------------------
 
@@ -369,12 +435,12 @@ age_heap_df <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportion
 
 shapes <- c(-1.2, -1.1,-1,-.9, -.8)
 scales <- c(8,9,10,11, 12)
-period_length <- c(10,20,30,40,50)
+period_length <- c(12,12,12,12,12)
 matrix_dist <- cbind(exp(scales), exp(shapes), period_length)
 
-sims_5 <- general_sim(num_child = 1000, param_matrix = matrix_dist, distribution = "weibull")
-
+sims_5 <- general_sim(num_child = 100, param_matrix = matrix_dist, distribution = "weibull")
 params_recovered_df <- recover_params(sims = sims_5, parameters = matrix_dist, distribution = "weibull")
+view(params_recovered_df)
 
 #Lognormal test
 
@@ -399,9 +465,8 @@ period_length <- c(60,60)
 matrix_params <- cbind(exp(scales_lam), exp(shapes_k), period_length)
 
 sims_2 <- general_sim(num_child = 1000, param_matrix = matrix_params, distribution = "weibull")
-
-params_2_recover <- recover_params(sims = sims_2, parameters = matrix_params, distribution == "weibull")
-
+params_2_recover <- recover_params(sims = sims_2, parameters = matrix_params, distribution = "weibull")
+view(params_2_recover)
 #lognormal test
 
 mus <- c(11.44, 11.44)

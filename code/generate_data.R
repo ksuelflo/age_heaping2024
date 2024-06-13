@@ -25,9 +25,11 @@ clean_params <- raw_expand%>%
   mutate(range_2 = if_else(is.na(age_2), NA, range_2),
          proportion_2 = if_else(is.na(age_2), NA, proportion_2))
 
+
+
 nrow(clean_params)
 
-
+# sim_param_param_.....
 
 
 

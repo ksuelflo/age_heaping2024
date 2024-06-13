@@ -10,3 +10,4 @@ input <- format_data(
   sex       = "total")
 
 lagrange5q0(data = input)
+
