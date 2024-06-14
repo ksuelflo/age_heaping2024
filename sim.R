@@ -398,14 +398,18 @@ recover_interval <- function(sims, parameters, distribution){
     ungroup()%>%
     mutate(period_length = sims$max_age[1], #Period_length is equal to the max age in first time period for child born at the beginning.
            across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%#Fix this to be generalizable once figure out how params df works.
-    mutate(age_at_begin = max_age- period_length)
+    mutate(age_at_begin = (period - 1)*period_length - birthdate + 1)
   
-  # return (clean_df)
+  #NOTE: Uncomment the following code to remove columns which are not needed: max_age, p, t, event
+  # clean_df <- clean_df%>%
+  #   select(-c(max_age, p, t, event))
+  # 
+  return (clean_df)
   
   res <- surv_synthetic(df = clean_df, survey = FALSE, individual = "id", p = "period", a_pi = "age_at_begin", l_p = "period_length", I_i = "interval_indicator",
                         A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval", t_1i = "right_interval", dist = "lognormal", numerical_grad = TRUE)
   
-  return (res)
+  # return (res)
 }
 
 #TESTING RECOVER_INTERVAL()
@@ -417,10 +421,11 @@ period_length <- c(12,12,12,12,12)
 matrix_lnorm <- cbind(mus, sigmas, period_length)
 
 sim_5_ln <- general_sim(num_child = 100, param_matrix = matrix_lnorm, distribution = "lognormal")
-view(sim_5_ln)
+
 res <- recover_interval(sim_5_ln, matrix_lnorm, "lognormal")
 view(res)
-res%>%filter(right_interval == 0)
+
+
 
 
 #-------------------------------------------------
