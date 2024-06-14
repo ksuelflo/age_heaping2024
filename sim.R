@@ -391,23 +391,36 @@ recover_interval <- function(sims, parameters, distribution){
            across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%#Fix this to be generalizable once figure out how params df works.
     mutate(age_at_begin = max_age- period_length)
   
+  return (clean_df)
+  
   res <- surv_synthetic(df = clean_df, survey = FALSE, individual = "id", p = "p", a_pi = "age_at_begin", l_p = "period_length", I_i = "interval_indicator",
                         A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval", t_1i = "right_interval", dist = "lognormal", numerical_grad = TRUE)
   
-  return (res)
+ 
 }
 
 
+#WHAT IT SHOULD LOOK LIKE
+filename <- file.choose()
+example <- load("../testdf.rds")
+view(example)
+
+
+
+
+
 #TESTING RECOVER_INTERVAL()
+
 mus <- c(15,16,17,18,19)
 sigmas <- exp(c(2.1,2.2,2.3,2.2,2.1))
-period_length <- c(60,60,60,60,60)
+period_length <- c(12,12,12,12,12)
 
 matrix_lnorm <- cbind(mus, sigmas, period_length)
 
 sim_5_ln <- general_sim(num_child = 100, param_matrix = matrix_lnorm, distribution = "lognormal")
 
 res <- recover_interval(sim_5_ln, matrix_lnorm, "lognormal")
+view(res)
 
 #-------------------------------------------------
 
