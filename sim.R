@@ -73,23 +73,30 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
 
 general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   
+  #NOTE: ASSUMING CONSTANT LENGTH OF PERIODS.
+  
+  
   #Setting up data frame. The first five plus `age_at_begin` do not iteratively change. `t` and `event` get populated using for loop below.
   
-  months <- param_matrix[,3]
+  months <- param_matrix[,3][1]
+
   periods <- nrow(param_matrix)
   # ids <- rep(1:(num_child*periods*months), each = periods)
-  ids <- rep(1:(sum(num_child*months)), each = periods)
+  ids <- rep(1:(num_child*months), each = periods)
   # birthdates <- rep(1:(months*periods), each = num_child*periods)
-  birthdates <- rep(1:(sum(months)), each = num_child*periods)
+  birthdates <- rep(1:(months*periods), each = num_child)
   # period <- rep(1:periods, times = num_child*periods*months)
-  period <- rep(1:periods, times = num_child*sum(months))
+  period <- rep(1:periods, times = num_child*months)
   # max_age <- (months*period - birthdates) + 1
-  max_age <- rep(0, length(period))
+  # max_age <- rep(0, length(period))
+  max_age <- (months*period) - (birthdates) + 1
+
+  # for (i in seq_along(period)){
+  #   max_age[i] <- (months*period) - (birthdates[i] * period[i]) + 1
+  #   total_months <- sum(months[1:period[i]])
+  #   max_age[i] <- total_months - birthdates[i] + 1
+  # }
   
-  for (i in seq_along(period)){
-    total_months <- sum(months[1:period[i]])
-    max_age[i] <- total_months - birthdates[i] + 1
-  }
   
   max_age[max_age < 0] <- 0
   age_at_begin <- c(0,max_age)
@@ -393,24 +400,13 @@ recover_interval <- function(sims, parameters, distribution){
            across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%#Fix this to be generalizable once figure out how params df works.
     mutate(age_at_begin = max_age- period_length)
   
-  return (clean_df)
+  # return (clean_df)
   
   res <- surv_synthetic(df = clean_df, survey = FALSE, individual = "id", p = "period", a_pi = "age_at_begin", l_p = "period_length", I_i = "interval_indicator",
                         A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval", t_1i = "right_interval", dist = "lognormal", numerical_grad = TRUE)
   
-  # return (res)
+  return (res)
 }
-
-
-
-#WHAT IT SHOULD LOOK LIKE
-filename <- file.choose()
-example <- load("../testdf.rds")
-view(example)
-
-
-
-
 
 #TESTING RECOVER_INTERVAL()
 
@@ -421,8 +417,11 @@ period_length <- c(12,12,12,12,12)
 matrix_lnorm <- cbind(mus, sigmas, period_length)
 
 sim_5_ln <- general_sim(num_child = 100, param_matrix = matrix_lnorm, distribution = "lognormal")
+view(sim_5_ln)
 res <- recover_interval(sim_5_ln, matrix_lnorm, "lognormal")
 view(res)
+res%>%filter(right_interval == 0)
+
 
 #-------------------------------------------------
 
