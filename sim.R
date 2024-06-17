@@ -400,7 +400,20 @@ recover_interval <- function(sims, parameters, distribution){
            across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%#Fix this to be generalizable once figure out how params df works.
     mutate(age_at_begin = (period - 1)*period_length - birthdate + 1)%>%
     group_by(id)%>%
-    mutate(across_boundary = if_else(sum(across_boundary) > 0, 1, 0))
+    mutate(across_boundary = if_else(sum(across_boundary) > 0, 1, 0))%>%
+    ungroup()%>%
+    mutate(left_interval = if_else(across_boundary == 1 & age_at_begin > left_interval & t%%1 != 0, age_at_begin, left_interval))%>%
+    mutate(right_interval = if_else(across_boundary == 1 & age_at_begin < left_interval & t%%1 != 0, max_age, right_interval))%>%
+    group_by(id)%>%
+    mutate(left_interval = if_else(length(unique(left_interval)) > 1, max(left_interval), min(left_interval)))%>%
+    mutate(right_interval = if_else(length(unique(right_interval)) > 1, min(right_interval), max(right_interval)))
+    
+    
+    
+    # mutate(left_interval = if_else(sum(across_boundary) == 5, max(right_interval) - (12 - min(age_at_begin)%%12), max(left_interval)))%>%
+    # ungroup()%>%
+    # mutate(across_boundary = 0)
+    
   
   #NOTE: Uncomment the following code to remove columns which are not needed: max_age, p, t, event
   # clean_df <- clean_df%>%
@@ -408,16 +421,20 @@ recover_interval <- function(sims, parameters, distribution){
   # 
   # return (clean_df)
   
+  start <- Sys.time()
+  
   res <- surv_synthetic(df = clean_df, survey = FALSE, individual = "id", p = "period", a_pi = "age_at_begin", l_p = "period_length", I_i = "interval_indicator",
                         A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval", t_1i = "right_interval", dist = "lognormal", numerical_grad = TRUE)
   
+  end <- Sys.time()
+  print(start-end)
   return (res)
 }
 
 #TESTING RECOVER_INTERVAL()
 
-mus <- c(15,16,17,18,19)
-sigmas <- exp(c(2.1,2.2,2.3,2.2,2.1))
+mus <- c(15,15,15,15,15)
+sigmas <- exp(c(2.1,2.1,2.1,2.1,2.1))
 period_length <- c(12,12,12,12,12)
 
 matrix_lnorm <- cbind(mus, sigmas, period_length)
@@ -425,7 +442,7 @@ matrix_lnorm <- cbind(mus, sigmas, period_length)
 sim_5_ln <- general_sim(num_child = 1000, param_matrix = matrix_lnorm, distribution = "lognormal")
 
 res <- recover_interval(sim_5_ln, matrix_lnorm, "lognormal")
-view(res)
+res$result
 
 
 
