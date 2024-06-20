@@ -11,11 +11,10 @@ age_1_vec <- 12
 # age_2_vec <- c(NA, 6,60)
 range_1_vec <- c("9,21", "6,18", "8,24")
 # range_2_vec <- c(NA, "3,9", "57, 60")
-period_length_vec <- c(12)
+period_length_vec <- c(60)
 periods_vec <- 5
 proportion_1_vec <- c(.10,.20,.50)
 # proportion_2_vec <- c(.05,.10)
-
 
 
 #Every possible combination of sim settings found using expand.grid. Even ones that aren't plausible.
@@ -26,10 +25,10 @@ proportion_1_vec <- c(.10,.20,.50)
 #                           age_2 = age_2_vec, range_1 = range_1_vec,range_2 = range_2_vec, period_length = period_length_vec, 
 #                           periods = periods_vec, proportion_1 = proportion_1_vec, proportion_2 = proportion_2_vec, stringsAsFactors = FALSE)
 
-raw_expand <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
+clean_params <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
                           range_1 = range_1_vec, period_length = period_length_vec, 
                           periods = periods_vec, proportion_1 = proportion_1_vec, stringsAsFactors = FALSE)
-view(raw_expand)
+view(clean_params)
 #Filtering out combos to only include plausible combinations.
 
 #Code for second age heaping.
@@ -40,16 +39,14 @@ view(raw_expand)
 #          proportion_2 = if_else(is.na(age_2), NA, proportion_2)
 #          )
 
-nrow(raw_expand)
-
 
 
 #Looping through each simulation setting
 for (i in 1:nrow(clean_params)){
   
-  if (i != 241){
-    next
-  }
+  # if (i != ){
+  #   next
+  # }
   
   #Simulating 1000 times (getting 1000 data frames) for each setting
   for (j in 1: 1000){
@@ -83,18 +80,18 @@ for (i in 1:nrow(clean_params)){
     #Clean data (interval censor is main bit.
     cleaned_data <- clean_data(sim_with_heap)
     
-    #Checking for NA values, to convert them to character "NA". THIS IS FOR FILE NAMING, THAT IS ALL.
-    if (is.na(clean_params$age_2[i])){
-      age_2 <- "NA"
-      proportion_2 <- "NA"
-      range_2 <- "NA"
-    }
-    #If not NA, just use normal.
-    else{
-      age_2 <- clean_params$age_2[i]
-      proportion_2 <- clean_params$proportion_2[i]
-      range_2 <- clean_params$range_2[i]
-    }
+    # Checking for NA values, to convert them to character "NA". THIS IS FOR FILE NAMING, THAT IS ALL. THIS IS FOR MULTIPLE AGES
+    # if (is.na(clean_params$age_2[i])){
+    #   age_2 <- "NA"
+    #   proportion_2 <- "NA"
+    #   range_2 <- "NA"
+    # }
+    # #If not NA, just use normal.
+    # else{
+    #   age_2 <- clean_params$age_2[i]
+    #   proportion_2 <- clean_params$proportion_2[i]
+    #   range_2 <- clean_params$range_2[i]
+    # }
     
     #Build out file name.
     filename <- str_c("sim_ROW=", i, "_numSIM=", j, "_lnormmean=", clean_params$lnorm_mean[i], "_lnormsd=", clean_params$lnorm_sd[i],
@@ -114,9 +111,9 @@ for (i in 1:nrow(clean_params)){
 
 view(cleaned_data)
 
-d <- cleaned_data%>%
+deaths <- cleaned_data%>%
   filter(t %% 1 != 0)
-nrow(d)
+nrow(deaths)
 
 #NAMING CONVENTION
 
@@ -126,5 +123,4 @@ nrow(d)
 #For the first row of clean_params, and the the first simulation (out of 1000), the file looks like this:
 # "sim_ROW=1_numSIM=1_lnormmean=15_lnormsd=2_samplesize=1000_age1=12_range1=921_periodLength=12_periods=5_proportion1=01_seed=1"
 
-read
 
