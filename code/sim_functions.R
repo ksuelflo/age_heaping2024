@@ -10,7 +10,8 @@ library(flexsurv)
 library(devtools)
 library(knitr)
 library(pssst)
-
+library(logquad5q0)
+library(SUMMER)
 
 
 # Functions ---------------------------------------------------------------

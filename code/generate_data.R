@@ -8,31 +8,49 @@ lnorm_mean_vec <- c(15,20)
 lnorm_sd_vec <- c(2,2.2)
 sample_size_vec <- c(1000,5000)
 age_1_vec <- 12
-age_2_vec <- c(NA, 6,60)
+# age_2_vec <- c(NA, 6,60)
 range_1_vec <- c("9,21", "6,18", "8,24")
-range_2_vec <- c(NA, "3,9", "57, 60")
+# range_2_vec <- c(NA, "3,9", "57, 60")
 period_length_vec <- c(12)
 periods_vec <- 5
-proportion_1_vec <- c(.01,.05,.1)
-proportion_2_vec <- c(.01,.05,.1)
+proportion_1_vec <- c(.10,.20,.50)
+# proportion_2_vec <- c(.05,.10)
+
 
 
 #Every possible combination of sim settings found using expand.grid. Even ones that aren't plausible.
 
-raw_expand <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
-                          age_2 = age_2_vec, range_1 = range_1_vec,range_2 = range_2_vec, period_length = period_length_vec, 
-                          periods = periods_vec, proportion_1 = proportion_1_vec, proportion_2 = proportion_2_vec, stringsAsFactors = FALSE)
 
+
+# raw_expand <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
+#                           age_2 = age_2_vec, range_1 = range_1_vec,range_2 = range_2_vec, period_length = period_length_vec, 
+#                           periods = periods_vec, proportion_1 = proportion_1_vec, proportion_2 = proportion_2_vec, stringsAsFactors = FALSE)
+
+raw_expand <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
+                          range_1 = range_1_vec, period_length = period_length_vec, 
+                          periods = periods_vec, proportion_1 = proportion_1_vec, stringsAsFactors = FALSE)
+view(raw_expand)
 #Filtering out combos to only include plausible combinations.
 
-clean_params <- raw_expand%>%
-  filter(age_2 == (as.numeric(str_extract(range_2, "\\d*(?=,)")) + 3) | is.na(age_2))%>%
-  mutate(range_2 = if_else(is.na(age_2), NA, range_2),
-         proportion_2 = if_else(is.na(age_2), NA, proportion_2)
-         )
+#Code for second age heaping.
+
+# clean_params <- raw_expand%>%
+#   filter(age_2 == (as.numeric(str_extract(range_2, "\\d*(?=,)")) + 3) | is.na(age_2))%>%
+#   mutate(range_2 = if_else(is.na(age_2), NA, range_2),
+#          proportion_2 = if_else(is.na(age_2), NA, proportion_2)
+#          )
+
+nrow(raw_expand)
+
+
 
 #Looping through each simulation setting
 for (i in 1:nrow(clean_params)){
+  
+  if (i != 241){
+    next
+  }
+  
   #Simulating 1000 times (getting 1000 data frames) for each setting
   for (j in 1: 1000){
     
@@ -79,26 +97,34 @@ for (i in 1:nrow(clean_params)){
     }
     
     #Build out file name.
-    filename <- str_c("sim_", i, "_", j, "_", clean_params$lnorm_mean[i], "_", clean_params$lnorm_sd[i], "_", clean_params$sample_size[i],
-                      "_", clean_params$age_1[i], "_", age_2, "_", clean_params$range_1[i], "_", range_2, "_", clean_params$period_length[i],
-                      "_", clean_params$periods[i], "_", clean_params$proportion_1[i], "_", proportion_2, "_", seed)
+    filename <- str_c("sim_ROW=", i, "_numSIM=", j, "_lnormmean=", clean_params$lnorm_mean[i], "_lnormsd=", clean_params$lnorm_sd[i],
+                      "_samplesize=", clean_params$sample_size[i], "_age=", clean_params$age_1[i], "_range=", clean_params$range_1[i], 
+                      "_periodlength=", clean_params$period_length[i], "_periods=", clean_params$periods[i], 
+                      "_proportion=", clean_params$proportion_1[i], "_seed=", seed)
     #Removing both periods and commas. Based on context of numbers, we don't need them, as they mess up files.
     filename <- str_replace_all(filename, ",", "")
     filename <- str_replace_all(filename, "\\.", "")
     print(filename)
-    saveRDS(cleaned_data, file = str_c("../data/", filename))
+    saveRDS(cleaned_data, file = str_c("../data/", filename, ".rds"))
     
-    # break
+    break
   }
-  # break
+  break
 }
+
+view(cleaned_data)
+
+d <- cleaned_data%>%
+  filter(t %% 1 != 0)
+nrow(d)
 
 #NAMING CONVENTION
 
 #General format of files:
-# sim_ROW_numSIM_lnormmean_lnormsd_samplesize_age1_age2_range1_range2_periodLength_periods_proportion1_proportion2_seed
+# sim_ROW_numSIM_lnormmean_lnormsd_samplesize_age1_range1_periodLength_periods_proportion1_seed
 
 #For the first row of clean_params, and the the first simulation (out of 1000), the file looks like this:
-#           "sim_1_1_15_2_1000_12_NA_9,21_NA_12_5_.01_NA_1.rds"
+# "sim_ROW=1_numSIM=1_lnormmean=15_lnormsd=2_samplesize=1000_age1=12_range1=921_periodLength=12_periods=5_proportion1=01_seed=1"
 
+read
 
