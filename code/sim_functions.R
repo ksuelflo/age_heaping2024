@@ -59,6 +59,8 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
   
 }
 
+
+
 #' @description
 #' This function simulates the mortality of children starting at age 0.
 #' 
@@ -178,6 +180,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
           if (distribution == "weibull"){
             time <- rweibull(n = 1, scale = param_matrix[curr_period, 1], shape = param_matrix[curr_period,2])
           }
+          
           
           else if (distribution == "lognormal"){
             time <- rlnorm(n = 1, meanlog = param_matrix[curr_period, 1], sdlog = param_matrix[curr_period,2])
@@ -341,7 +344,8 @@ clean_data <- function(sims){
     mutate(right_interval = if_else(across_boundary == 1 & age_at_begin < left_interval & t%%1 != 0, max_age, right_interval))%>%
     group_by(id)%>%
     mutate(left_interval = if_else(length(unique(left_interval)) > 1, max(left_interval), min(left_interval)))%>%
-    mutate(right_interval = if_else(length(unique(right_interval)) > 1, min(right_interval), max(right_interval)))
+    mutate(right_interval = if_else(length(unique(right_interval)) > 1, min(right_interval), max(right_interval)))%>%
+    mutate(across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))
   
   return (clean_df)
 }
