@@ -2,6 +2,7 @@ library(readstata13)
 library(tidyverse)
 library(pssst)
 library(knitr)
+library(SUMMER)
 
 folders <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Taylor/data")
 paths <- str_c("data/", folders, "/", str_subset(string = list.files(path = str_c(getwd(), "../data/", folders)), pattern = "DTA"))
