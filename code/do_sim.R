@@ -51,6 +51,25 @@ for (i in seq_along(all_files)){
   
   #------------------------------------------------
   
+  # reformat data to work with discrete hazards model - 6 age periods
+  
+  dh_data <- reformat_sims_disc_haz(sims = sim,
+                         agegroup_splits = c(0,1,12,24,36,48,60))
+  
+  res_discrete_hazard <- fit_disc_haz(dh_data)
+  
+  #------------------------------------------------
+  
+  # get 22 age inputs for logquad model from monthly discrete hazards fit
+  dh_data_monthly <- reformat_sims_disc_haz(sims = sim,
+                                    agegroup_splits = 0:60)
+  
+  res_discrete_hazard_monthly <- fit_disc_haz(dh_data_monthly)
+  
+  log_quad_pars <- get_log_quad_params(res_discrete_hazard_monthly)
+  
+  # TO DO: Kyle - take it from here!
+  
   #log quad fitting
   
   #Example format of data: 22 q(x)'s.
@@ -76,10 +95,6 @@ for (i in seq_along(all_files)){
   res_log_quad <- lagrange5q0(data = input)
   
   #------------------------------------------------
-  
-  #fit discrete hazards
-  
-  res_discrete_hazard <- NULL
   
   list_res <- list(res_surv_lnorm, res_surv_lnorm_adjusted, res_surv_weibull, res_log_quad, res_discrete_hazard)
   

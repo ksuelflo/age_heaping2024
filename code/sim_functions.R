@@ -442,8 +442,8 @@ reformat_sims_disc_haz <- function(sims,
 #' @author Taylor Okonek
 fit_disc_haz <- function(df) {
   mod_list <- list()
-  for (i in 1:length(unique(dh_df$year))) {
-    temp <- dh_df %>% filter(year == i)
+  for (i in 1:length(unique(df$year))) {
+    temp <- df %>% filter(year == i)
     
     mod_list[[i]] <- glm(cbind(died, total - died) ~ -1 + agegroup, data = temp, family = binomial(link = "logit"))
     
@@ -456,5 +456,48 @@ fit_disc_haz <- function(df) {
   
   return(mod_list)
 }
+
+#' @description This function takes in the output from `fit_disc_haz()` where
+#' monthly age groups are specified, and obtains
+#' the 22 age inputs needed for the log quad model at the appropriate age groups.
+#' Hazard is assumed constant over first month of life, and q(x) for ages x = 7 days,
+#' 14 days, and 21 days is computed accordingly.
+#'
+#' @param disc_haz_res a list, which comes from `fit_disc_haz()`
+#'
+#' @returns A data frame containing the upper_age and rate inputs needed for `format_data` 
+#' and `lagrange5q0` for the log-quad model in each time period
+#' @author Taylor Okonek
+get_log_quad_params <- function(disc_haz_res) {
+  
+  upper_age <- c(7, 14, 21, 28, 60.8750 ,  91.3125,  121.7500  ,152.1875,
+                 182.6250 , 213.0625,  243.5000 , 273.9375  ,304.3750 , 334.8125,  365.2500 , 456.5625,
+                 547.8750 , 639.1875 , 730.5000 ,1095.7500 ,1461.0000 ,1826.2500 ,1826.2500)
+  
+  # set up return dataframe
+  ret_df <- data.frame(period = NA, upper_age = NA, rate = NA)
+  
+  # loop through time periods
+  
+  for (i in 1:length(disc_haz_res)) {
+    
+    mod <- disc_haz_res[[i]]
+    betas <- summary(mod)$coef[, 1]
+    probs <- expit(betas)
+    cumprob <- unname(1 - cumprod((1 - probs)))
+    rate <- cbind(c(cumprob[1]/4,
+                    cumprob[1]/2,
+                    cumprob[1]/4 * 3,
+                    cumprob[c(1:12,15,18,21,24,36,48,60,60)]))
+    
+    ret_df <- rbind(ret_df, data.frame(period = i,
+                                       upper_age = upper_age, 
+                                       rate = rate))
+  }
+  
+  return(ret_df[-1,])
+}
+
+
 
 
