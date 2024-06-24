@@ -350,6 +350,87 @@ clean_data <- function(sims){
   return (clean_df)
 }
 
-
+#' @description This function takes in a data frame, coming from `clean_data()` and
+#' reformats it so that the discrete hazards model can be fit to it. Much of the code
+#' was cribbed from `getBirths()` in the SUMMER package in R.
+#'
+#' @param sims a data frame, which comes from `clean_data()`
+#' @param agegroup_splits a vector, denoting how age groups should be split up. If
+#' fitting the traditional discrete hazards model from Mercer et all, agegroup_splits should be 
+#' c(0,1,12,24,36,48,60). If you want monthly hazards (which will be more relevant)
+#' for inputting this data into the log-quad model, specify 0:60.
+#'
+#' @returns A data frame which has binomial counts of deaths (conditional on 
+#' survival in each time period) by time period and age group. New columns 
+#' have names `period`, `agegroup`, `total`, and `died`.
+#' @author Taylor Okonek
+reformat_sims_disc_haz <- function(sims, 
+                                   agegroup_splits = c(0,1,12,24,36,48,60)) {
+  
+  # Infer number of time periods from rows of observations per id
+  n_periods <- sims %>% filter(id == 1) %>% nrow()
+  
+  # Assumes all periods are the same length
+  period_length <- sims$period_length[1]
+  
+  df <- as.data.frame(sims)
+  
+  # only need 1 row per person, and all relevant information needed is identical across time periods
+  df <- df %>% distinct(id, .keep_all = TRUE)
+  
+  # if t < 1, interval censor it from 0 to 1 months rather than exactly observed in accordance with DH model
+  df$exact_died <- df$left_interval == df$right_interval
+  
+  df <- df %>%
+    mutate(left_interval = ifelse(t < 1 & t >= 0 & exact_died, 0, left_interval),
+           right_interval = ifelse(t < 1 & t >= 0 & exact_died, 1, right_interval))
+  
+  # make obsStart = df$birthdate
+  df$obsStart <- df$birthdate
+  df$obsStart <- df$obsStart - 1
+  
+  # make obsStop = right_interval + birthdate if interval censored, otherwise birthdate + right_censor_age
+  df$obsStop <- ifelse(df$interval_indicator == 1, df$obsStart + df$right_interval,
+                       df$obsStart + df$right_censor_age)
+  df$died <- df$interval_indicator
+  df$dob <- df$obsStart 
+  
+  # remove extraneous columns for space
+  df_mini <- df %>%
+    dplyr::select(id, died, obsStart, obsStop, dob) 
+  
+  # cribbed from SUMMER::getBirths
+  
+  test <- survSplit(Surv(time = obsStart, time2=obsStop, 
+                         event = died, origin = dob)~dob+died+id, 
+                    data = df_mini, 
+                    cut = 1:60, 
+                    start = "agemonth", 
+                    end = "tstop", 
+                    event = "interval_indicator")
+  
+  # assign time periods to each row
+  test$age_at_tstop <- test$dob + test$tstop
+  
+  test$period <- cut(test$age_at_tstop, breaks = seq(0,period_length * (n_periods + 1), by = period_length))
+  
+  levels(test$period)
+  
+  test <- test %>%
+    mutate(year = case_when(period == levels(test$period)[1] ~ 1,
+                            period == levels(test$period)[2] ~ 2,
+                            period == levels(test$period)[3] ~ 3,
+                            period == levels(test$period)[4] ~ 4,
+                            .default = 5))
+  
+  
+  suppressMessages(dh_df <- test %>%
+                     mutate(agegroup = cut(agemonth, breaks = agegroup_splits, right = FALSE)) %>%
+                     group_by(year, agegroup) %>%
+                     summarize(total = n(),
+                               died = sum(interval_indicator)))
+  
+  return(dh_df)
+}
 
 
