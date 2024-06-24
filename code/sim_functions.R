@@ -433,4 +433,28 @@ reformat_sims_disc_haz <- function(sims,
   return(dh_df)
 }
 
+#' @description This function takes in a data frame, coming from `reformat_sims_disc_haz()` and
+#' fits the discrete hazards model described in Mercer et al. (2015) to the data.
+#'
+#' @param df a data frame, which comes from `reformat_sims_disc_haz()`
+#'
+#' @returns A list of `glm` fits containing logistic regression output for each time period
+#' @author Taylor Okonek
+fit_disc_haz <- function(df) {
+  mod_list <- list()
+  for (i in 1:length(unique(dh_df$year))) {
+    temp <- dh_df %>% filter(year == i)
+    
+    mod_list[[i]] <- glm(cbind(died, total - died) ~ -1 + agegroup, data = temp, family = binomial(link = "logit"))
+    
+    # betas <- summary(mod)$coef[, 1]
+    # probs <- expit(betas)
+    # ns <- c(1,11,12,12,12,12)
+    # mean.est <- (1 - prod((1 - probs)^ns, na.rm = TRUE))
+    # (1 - cumprod((1 - probs)^ns))
+  }
+  
+  return(mod_list)
+}
+
 
