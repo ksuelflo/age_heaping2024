@@ -6,7 +6,7 @@ source("sim_functions.R")
 
 lnorm_mean_vec <- c(15,20)
 lnorm_sd_vec <- c(2,2.2)
-sample_size_vec <- c(1000,5000)
+sample_size_vec <- c(100,500)
 age_1_vec <- 12
 # age_2_vec <- c(NA, 6,60)
 range_1_vec <- c("9,21", "6,18", "8,24")

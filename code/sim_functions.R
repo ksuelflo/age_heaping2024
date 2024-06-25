@@ -25,6 +25,7 @@ library(SUMMER)
 #' @param age_at_begin is a vector of the age at the beginning of each period for each child.
 #' 
 #' @return a vector of probabilities of death for each child for each period.
+#' @author Kyle Suelflow
 helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
   
   # p is the vector we will populate. It is the same length as max_age, age_at_begin, etc. (We will be putting it in a data frame with them!)
@@ -73,6 +74,7 @@ helper_fill_p <- function(distribution, param_matrix, max_age, age_at_begin){
 #' @return A data frame where each row corresponds to a child, with information on whether or not they died in the time period, amongst
 #' other things.
 #' 
+#' @author Kyle Suelflow
 
 general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   
@@ -249,6 +251,7 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
 #' @param sim_data A data frame which results from calling `general_sim()`.
 #' 
 #' @returns A data frame, which is a modified version of `sim_data`, where some deaths have been moved to be heaped at certain ages. 
+#' @author Kyle Suelflow
 sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data){
   
   #Time and event for each observation. 
@@ -310,6 +313,7 @@ sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data)
 #'@returns A data frame which has new columns `left_interval`, `right_interval`, `interval_indicator`, `right_censor_age`, `period_length`, and
 #'`across_boundary`, in addition to all the original columns in `sims`.
 #'
+#'@author Kyle Suelflow
 clean_data <- function(sims){
   
   clean_df <- sims%>%
