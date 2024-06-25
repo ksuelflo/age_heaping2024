@@ -575,5 +575,81 @@ summarize_disc_haz <- function(res_list) {
   
 }
 
+#' @description This function takes in the output from `surv_synthetic()` where
+#' and obtains confidence intervals for
+#' estimates of NMR, IMR, U5MR in each period
+#'
+#' @param res_surv_synthetic a list of output, which comes from `surv_synthetic()`
+#' @param distribution a string referring to which distribution was used in
+#' `surv_synthetic`. Currently supports "lognormal" and "weibull", and defaults to 
+#' "lognormal".
+#'
+#' @returns A data frame containing estimates of NMR, IMR, and U5MR from the 
+#' discrete hazards model, along with confidence intervals for each summary measure
+#' @author Taylor Okonek
+get_uncertainty_surv_synthetic <- function(res_surv_synthetic,
+                                           distribution = "lognormal") {
+  
+  # extract covariance matrix and parameter estimates to sample from multivariate normal
+  means <- res_surv_synthetic$optim$par
+  var_est <- res_surv_synthetic$variance
+  
+  # sample from multivariate normal
+  samps <- mvrnorm(n = 1000, mu = means, Sigma = var_est)
+  
+  # for each sample, compute estimates of NMR, IMR, U5MR 
+  # one matrix of samples per summary measures, columns by period
+  n_periods <- nrow(res_surv_synthetic$result)
+  nmr_samps <- matrix(NA, nrow = 1000, ncol = n_periods)
+  imr_samps <- matrix(NA, nrow = 1000, ncol = n_periods)
+  u5mr_samps <- matrix(NA, nrow = 1000, ncol = n_periods)
+  
+  
+  if (distribution == "lognormal") {
+    
+    for (i in 1:nrow(samps)) {
+      # for lognormal, c(log_sigma_mean for each period, log_1overmu_mean for each period)
+      log_sigma_ests <- samps[i,][1:n_periods]
+      log_1overmu_ests <- samps[i,][(n_periods + 1):(n_periods * 2)]
+      
+      mu_ests <- 1/exp(log_1overmu_ests)
+      sigma_ests <- exp(log_sigma_ests)
+      
+      nmr_samps[i,] <- plnorm(1, meanlog = mu_ests, sdlog = sigma_ests)
+      imr_samps[i,] <- plnorm(12, meanlog = mu_ests, sdlog = sigma_ests)
+      u5mr_samps[i,] <- plnorm(60, meanlog = mu_ests, sdlog = sigma_ests)
+      
+    }
+    
+  } else if (distribution == "weibull") {
+    
+    for (i in 1:nrow(samps)) {
+      # for weibull, c(log_shape_mean for each period, log_scale_mean for each period)
+      log_shape_ests <- samps[i,][1:n_periods]
+      log_scale_ests <- samps[i,][(n_periods + 1):(n_periods * 2)]
+      
+      nmr_samps[i,] <- pssst:::p_weibull(1, log_shape = log_shape_ests, log_scale = log_scale_ests)
+      imr_samps[i,] <- pssst:::p_weibull(12, log_shape = log_shape_ests, log_scale = log_scale_ests)
+      u5mr_samps[i,] <- pssst:::p_weibull(60, log_shape = log_shape_ests, log_scale = log_scale_ests)
+    }
+    
+  } else {
+    stop("distribution not supported")
+  }
+  
+  # create return dataframe
+  ret_df <- data.frame(period = 1:n_periods,
+                       NMR = res_surv_synthetic$result$NMR,
+                       IMR = res_surv_synthetic$result$IMR,
+                       U5MR = res_surv_synthetic$result$U5MR,
+                       NMR_lower = apply(nmr_samps, 2, quantile, 0.025),
+                       NMR_upper = apply(nmr_samps, 2, quantile, 0.975),
+                       IMR_lower = apply(imr_samps, 2, quantile, 0.025),
+                       IMR_upper = apply(imr_samps, 2, quantile, 0.975),
+                       U5MR_lower = apply(u5mr_samps, 2, quantile, 0.025),
+                       U5MR_upper = apply(u5mr_samps, 2, quantile, 0.975))
+  
+  return(ret_df)
+}
 
 
