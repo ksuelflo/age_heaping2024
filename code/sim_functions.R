@@ -498,6 +498,82 @@ get_log_quad_params <- function(disc_haz_res) {
   return(ret_df[-1,])
 }
 
+#' @description This function takes in the output from `fit_disc_haz()` where
+#' the classical six age groups are specified, and obtains
+#' estimates of NMR, IMR, U5MR, and 95% CI's for each
+#'
+#' @param res_list a list, which comes from `fit_disc_haz()`
+#'
+#' @returns A data frame containing estimates of NMR, IMR, and U5MR from the 
+#' discrete hazards model, along with confidence intervals for each summary measure
+#' @author Taylor Okonek
+summarize_disc_haz <- function(res_list) {
+  
+  # get number of periods
+  n_periods <- length(res_list)
+  
+  # Get confidence band for discrete model
+  # Code cribbed from getDirect from SUMMER
+  
+  # set up lims_mat to contain lower and upper bound of confidence intervals 
+  lims_mat <- matrix(NA, nrow = length(res_list[[1]]$coefficients), ncol = 2)
+  
+  # set up return dataframe for NMR, IMR, U5MR 
+  ret_df <- data.frame(period = 1:n_periods,
+                       NMR = NA,
+                       IMR = NA,
+                       U5MR = NA,
+                       NMR_lower = NA,
+                       NMR_upper = NA,
+                       IMR_lower = NA,
+                       IMR_upper = NA,
+                       U5MR_lower = NA,
+                       U5MR_upper = NA
+  )
+  
+  # loop through periods
+  for (j in 1:n_periods) {
+    
+    # get point estimates
+    betas <- summary(res_list[[j]])$coef[, 1]
+    probs <- expit(betas)
+    ns <- c(1,11,12,12,12,12)
+    mean_ests <- (1 - cumprod((1 - probs)^ns))
+    
+    # put mean estimates into return dataframe
+    ret_df[j,c("NMR","IMR","U5MR")] <- mean_ests[c(1,2,6)]
+    
+    # loop through age groups (cumulatively)
+    for (i in 1:nrow(lims_mat)) {
+      which_vals <- 1:i
+      V2 <- stats::vcov(res_list[[j]])[which_vals, which_vals]
+      V <- V2
+      betas2 <- summary(res_list[[j]])$coef[which_vals, 1]
+      betas <- betas2
+      probs <- expit(betas)
+      ns <- c(1,11,12,12,12,12)[which_vals]
+      mean.est <- (1 - prod((1 - probs)^ns, na.rm = TRUE))
+      gamma <- prod((1 + exp(betas))^ns, na.rm = TRUE)
+      derivatives <- (gamma)/(gamma - 1) * ns * expit(betas)
+      derivatives[which(is.na(derivatives))] <- 0
+      var.est <- t(derivatives) %*% V %*% derivatives
+      lims_mat[i,] <- logit(mean.est) + stats::qnorm(c(0.025, 0.975)) * 
+        sqrt(c(var.est))
+    }
+    
+    # get confidence intervals
+    cis <- expit(lims_mat)
+    
+    # put CIs into return dataframe
+    ret_df[j,c("NMR_lower","NMR_upper")] <- cis[1,]
+    ret_df[j,c("IMR_lower","IMR_upper")] <- cis[2,]
+    ret_df[j,c("U5MR_lower","U5MR_upper")] <- cis[6,]
+    
+  }
+  
+  return(ret_df)
+  
+}
 
 
 
