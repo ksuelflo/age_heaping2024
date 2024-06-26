@@ -31,6 +31,9 @@ for (i in seq_along(folders)){
 
 NMRs <- rep(0,length(dfs))
 IMRs <- rep(0,length(dfs))
+year2 <- rep(0, length(dfs))
+year3 <- rep(0, length(dfs))
+year4 <- rep(0, length(dfs))
 U5MRs <- rep(0,length(dfs))
 zeros <- rep(0,length(dfs))
 
@@ -58,29 +61,33 @@ for (i in seq_along(dfs)){
   NMRs[i] <- probs[1]
   IMRs[i] <- (1- prod((1- probs[1:2])^interval_lengths[1:2]))
   U5MRs[i] <- (1 - prod((1 - probs)^interval_lengths))
-
+  year2[i] <- (1- prod((1- probs[1:3])^interval_lengths[1:3]))
+  year3[i] <- (1- prod((1- probs[1:4])^interval_lengths[1:4]))
+  year4[i] <- (1- prod((1- probs[1:5])^interval_lengths[1:5]))
+  
 }
 
-results <- data.frame(country = countries, survey_year = years, period = formatted_intervals, NMR = NMRs, IMR = IMRs, U5MR = U5MRs, zeros = zeros)
+results <- data.frame(country = countries, survey_year = years, period = formatted_intervals, NMR = NMRs, IMR = IMRs, year2 = year2,
+                      year3 = year3, year4 = year4, U5MR = U5MRs, zeros = zeros)
 
-results_longer <- pivot_longer(results, cols = c(zeros,NMR, IMR, U5MR), names_to = "mortality", values_to = "y")%>%
-  mutate(age = rep(c(0,1,12,60), length(dfs)))
+results_longer <- pivot_longer(results, cols = c(zeros,NMR, IMR, year2, year3, year4, U5MR), names_to = "mortality", values_to = "y")%>%
+  mutate(age = rep(c(0, 1, 12, 24, 36, 48, 60), length(dfs)))
   
 view(results_longer)
 
-
 #Getting lnorm distribution.
+
+ages <- 0:60
 y <- dlnorm(ages, 15, exp(2))
 y_update <- rep(0, length(y))
 
 for (i in seq_along(y)){
   #Applying discrete hazards method to lnorm output. 
   y_update[i] <- 1 - prod(1- y[1:i])
-  
 }
 
-ages <- 0:60
-lognormal = "lnorm(15, exp(2.2))"
+
+lognormal <- "lnorm(15, exp(2.2))"
 
 ggplot()+
   geom_line(aes(x = ages, y = y_update, linewidth = lognormal))+
@@ -91,4 +98,6 @@ ggplot()+
   scale_linewidth_manual(values = .5)+
   theme_classic()
   
+
+
 

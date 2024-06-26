@@ -10,8 +10,6 @@ source("sim_functions.R")
 #Getting all generated data frames' file paths.
 all_files <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Taylor/age_heaping2024/data")
 
-sim <- readRDS(str_c("../data/", all_files[1]))
-
 #IMPORTANT: this data line is used to help fit logquad model.
 data("fin1933")
 
@@ -28,6 +26,10 @@ for (i in seq_along(all_files)){
   res_surv_lnorm <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
                                    I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
                                    t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+  
+  #Table of summary results. We will rbind to this data frame throughout the rest of the models. 
+  summary_results <- get_uncertainty_surv_synthetic(res_surv_lnorm)%>%
+    mutate(model = "surv_synth_lnorm", .before = period)
   
   print("fit lnorm model")
   #------------------------------------------------
@@ -48,6 +50,9 @@ for (i in seq_along(all_files)){
                                    I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
                                    t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
   
+  summary_results <- rbind(summary_results, get_uncertainty_surv_synthetic(res_surv_lnorm_adjusted)%>%
+                             mutate(model = "surv_synth_lnorm_adj", .before = period))
+  
   print("fit lnorm adjusted model")
   #------------------------------------------------
   
@@ -56,6 +61,9 @@ for (i in seq_along(all_files)){
   res_surv_weibull <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
                                    I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
                                    t_1i = "right_interval", numerical_grad = TRUE, dist = "weibull")
+  
+  summary_results <- rbind(summary_results, get_uncertainty_surv_synthetic(res_surv_weibull, distribution = "weibull")%>%
+                             mutate(model = "surv_synth_weibull", .before = period))
   
   print("fit weibull model")
   #------------------------------------------------
@@ -67,6 +75,9 @@ for (i in seq_along(all_files)){
   
   res_discrete_hazard <- fit_disc_haz(dh_data)
   
+  summary_results <- rbind(summary_results, summarize_disc_haz(res_discrete_hazard)%>%
+                             mutate(model = "discrete_hazards", .before = period))
+
   print("fit discrete hazards")
   #------------------------------------------------
   
@@ -97,6 +108,19 @@ for (i in seq_along(all_files)){
   
   res_log_quad <- vector("list", length = 5)
   
+  #Setting up summary table for logquad
+  NMR <- rep(0,5)
+  IMR <- rep(0,5)
+  U5MR <- rep(0,5)
+  NMR_lower <- rep(0,5)
+  NMR_upper <- rep(0,5)
+  IMR_lower <- rep(0,5)
+  IMR_upper <- rep(0,5)
+  U5MR_lower <- rep(0,5)
+  U5MR_upper <- rep(0,5)
+  period <- 1:5
+  model <- rep("logquad", 5)
+  
   #Looping through each period
   for (i in 1:5){
     input <- format_data(
@@ -109,9 +133,25 @@ for (i in seq_along(all_files)){
       weight    = log_quad_pars$weight[log_quad_pars$period == i])
     
     res_log_quad[[i]] <- lagrange5q0(data = input)
+    
+    NMR[i] <- res_log_quad[[i]]$predictions[5,4]
+    IMR[i] <- res_log_quad[[i]]$predictions[16,4]
+    U5MR[i] <- res_log_quad[[i]]$predictions[22,4]
+    NMR_lower[i] <- res_log_quad[[i]]$predictions[5,5]
+    NMR_upper[i] <- res_log_quad[[i]]$predictions[16,5]
+    IMR_lower[i] <- res_log_quad[[i]]$predictions[22,5]
+    IMR_upper[i] <- res_log_quad[[i]]$predictions[5,6]
+    U5MR_lower[i] <- res_log_quad[[i]]$predictions[16,6]
+    U5MR_upper[i] <- res_log_quad[[i]]$predictions[22,6]
   }
   
-  names(res_log_quad) <- c("period 1", "period 2", "period 3", "period 4", "period 5")
+  summary_lquad <- data.frame(model = model, period = period, NMR = NMR, IMR = IMR, U5MR = U5MR,
+                              NMR_lower = NMR_lower, NMR_upper = NMR_upper, IMR_lower = IMR_lower, 
+                              IMR_upper = IMR_upper, U5MR_lower = U5MR_lower, U5MR_upper = U5MR_upper)
+  
+  summary_results <- rbind(summary_results, summary_lquad)
+  
+  names(res_log_quad) <- c("period_1", "period_2", "period_3", "period_4", "period_5")
   
   # input <- format_data(
   #   lower_age = log_quad_pars$lower_age,
@@ -131,7 +171,15 @@ for (i in seq_along(all_files)){
   list_res <- list(surv_lnorm = res_surv_lnorm, surv_lnorm_adjusted = res_surv_lnorm_adjusted, 
                    surv_weibull = res_surv_weibull, discrete_hazard = res_discrete_hazard, log_quad = res_log_quad)
   
-  #Save the list somewhere (Probably new folder)
+  
+  
+  #Save the list somewhere (Probably new folder) STILL NEED RELATIVE PATH
   
   # saveRDS(list_res, str_replace(all_files[i], "sim", "res"))
+  
+  #Save the summary results somewhere (Probably new folder) STILL NEED RELATIVE PATH
+  
+  # saveRDS(summary_results, str_replace(all_files[i], "sim", "summary"))
 }
+
+view(summary_results)
