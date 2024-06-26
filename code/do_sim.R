@@ -138,10 +138,10 @@ for (i in seq_along(all_files)){
     IMR[i] <- res_log_quad[[i]]$predictions[16,4]
     U5MR[i] <- res_log_quad[[i]]$predictions[22,4]
     NMR_lower[i] <- res_log_quad[[i]]$predictions[5,5]
-    NMR_upper[i] <- res_log_quad[[i]]$predictions[16,5]
-    IMR_lower[i] <- res_log_quad[[i]]$predictions[22,5]
-    IMR_upper[i] <- res_log_quad[[i]]$predictions[5,6]
-    U5MR_lower[i] <- res_log_quad[[i]]$predictions[16,6]
+    NMR_upper[i] <- res_log_quad[[i]]$predictions[5,6]
+    IMR_lower[i] <- res_log_quad[[i]]$predictions[16,5]
+    IMR_upper[i] <- res_log_quad[[i]]$predictions[16,6]
+    U5MR_lower[i] <- res_log_quad[[i]]$predictions[22,5]
     U5MR_upper[i] <- res_log_quad[[i]]$predictions[22,6]
   }
   
