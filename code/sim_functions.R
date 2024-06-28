@@ -5,9 +5,8 @@
 
 ## Load necessary packages up front
 library(survival)
-library(tidyverse)
+library(dplyr)
 library(flexsurv)
-library(devtools)
 library(knitr)
 library(pssst)
 library(logquad5q0)
