@@ -49,7 +49,7 @@ for (i in 1:nrow(clean_params)){
   # }
   
   #Simulating 1000 times (getting 1000 data frames) for each setting
-  for (j in 1: 1000){
+  for (j in 1: 1){
     
     #Setting seed for reproducibility
     seed <- 1000*i + j
@@ -104,12 +104,9 @@ for (i in 1:nrow(clean_params)){
     print(filename)
     saveRDS(cleaned_data, file = str_c("../data/", filename, ".rds"))
     
-    break
   }
-  break
 }
 
-view(cleaned_data)
 
 deaths <- cleaned_data%>%
   filter(t %% 1 != 0)

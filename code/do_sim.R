@@ -15,6 +15,8 @@ data("fin1933")
 
 for (i in seq_along(all_files)){
   
+  print(all_files[i])
+  
   # if (i != 2){
   #   next
   # }
@@ -132,7 +134,9 @@ for (i in seq_along(all_files)){
       fit       = log_quad_pars$fit[log_quad_pars$period == i],
       weight    = log_quad_pars$weight[log_quad_pars$period == i])
     
+    
     res_log_quad[[i]] <- lagrange5q0(data = input)
+    print(str_c("fit log quad on period ", i))
     
     NMR[i] <- res_log_quad[[i]]$predictions[5,4]
     IMR[i] <- res_log_quad[[i]]$predictions[16,4]
@@ -164,8 +168,6 @@ for (i in seq_along(all_files)){
   # 
   # res_log_quad <- lagrange5q0(data = input)
   
-  print("fit logquad")
-  
   #------------------------------------------------
   
   list_res <- list(surv_lnorm = res_surv_lnorm, surv_lnorm_adjusted = res_surv_lnorm_adjusted, 
@@ -175,11 +177,64 @@ for (i in seq_along(all_files)){
   
   #Save the list somewhere (Probably new folder) STILL NEED RELATIVE PATH
   
-  # saveRDS(list_res, str_replace(all_files[i], "sim", "res"))
+  saveRDS(list_res, str_c("../models/", str_replace(all_files[i], "sim", "res")))
   
   #Save the summary results somewhere (Probably new folder) STILL NEED RELATIVE PATH
   
-  # saveRDS(summary_results, str_replace(all_files[i], "sim", "summary"))
+  saveRDS(list_res, str_c("../summaries/", str_replace(all_files[i], "sim", "summary")))
 }
 
-view(summary_results)
+period_5 <- sim%>%
+  filter(period == 5)
+view(period_5)
+
+view(log_quad_pars)
+input_broken <- input
+view(input_broken)
+view(input)
+
+
+saveRDS(input, file = "../data/input_example.rds")
+
+
+#WARNINGS FROM SUCCESS
+
+# 6: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 7: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 8: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 9: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 10: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 11: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 12: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 13: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+
+#WARNINGS FROM FAIL
+
+# 21: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 22: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 23: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 24: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx). Prediction extrapolated.
+# 25: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 26: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 27: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx). Prediction extrapolated.
+# 28: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+# 29: In lagrange5q0(data = input) :
+#   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
+# 30: In lagrange5q0(data = input) :
+#   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.

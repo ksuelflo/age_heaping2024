@@ -78,26 +78,32 @@ view(results_longer)
 #Getting lnorm distribution.
 
 ages <- 0:60
-y <- dlnorm(ages, 15, exp(2))
-y_update <- rep(0, length(y))
+y <- list(dlnorm(ages, 15, exp(2)), dlnorm(ages, 20, exp(2.4)), dlnorm(ages, 15, exp(2.2)), dlnorm(ages, 12, exp(2.2)))
+y_update <- list(rep(0, length(y[[1]])), rep(0, length(y[[1]])),rep(0, length(y[[1]])),rep(0, length(y[[1]])))
 
 for (i in seq_along(y)){
-  #Applying discrete hazards method to lnorm output. 
-  y_update[i] <- 1 - prod(1- y[1:i])
+  
+  for (j in seq_along(y[[i]])){
+    #Applying discrete hazards method to lnorm output. 
+    y_update[[i]][j] <- 1 - prod(1- y[[i]][1:j])
+  }
 }
 
-
-lognormal <- "lnorm(15, exp(2.2))"
-
-ggplot()+
-  geom_line(aes(x = ages, y = y_update, linewidth = lognormal))+
+lnorm_data <- data.frame(y = list_c(y_update), age = rep(ages, 4), type = rep(c("lnorm(15, exp(2)", "lnorm(20, exp(2.4)", 
+                                                                                "lnorm(15, exp(2.2)", "lnorm(12, exp(2.2)"), each = 61))
+view(lnorm_data)
+p <- ggplot()+
+  geom_line(data = lnorm_data, aes(x = age, y = y, linetype = type))+
   geom_line(data = results_longer, aes(x = age, y = y, group = interaction(country, survey_year), 
                                        color = interaction(country, survey_year)))+
-  labs(x = "age (months)", y = "mortality rate", color = "Country Year", linewidth = "lognormal curve", caption = "Lognormal curve uses mean of 15, sd of exp(2.2).
+  labs(x = "age (months)", y = "mortality rate", color = "Country Year", linetype = "lognormal curves", caption = "Lognormal curve uses mean of 15, sd of exp(2.2).
        The resulting values are updated using the discrete hazards approach.")+
-  scale_linewidth_manual(values = .5)+
+  scale_linewidth_manual(values = c(.5, .5, .5, .5))+
   theme_classic()
   
+p
+#Save plot when finished:
 
+# ggsave(filename = "disc_haz_lnorm.png", plot = p, path = "../plots")
 
 
