@@ -1,4 +1,5 @@
 source("sim_functions.R")
+library(tibble)
 
 #General format of files:
 # sim_ROW_numSIM_lnormmean_lnormsd_samplesize_age1_range1_periodLength_periods_proportion1_seed
@@ -13,7 +14,7 @@ all_files <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Ta
 #IMPORTANT: this data line is used to help fit logquad model.
 data("fin1933")
 
-for (i in seq_along(all_files)){
+for (i in 3:length(all_files)){
   
   print(all_files[i])
   
@@ -134,19 +135,35 @@ for (i in seq_along(all_files)){
       fit       = log_quad_pars$fit[log_quad_pars$period == i],
       weight    = log_quad_pars$weight[log_quad_pars$period == i])
     
+    tryCatch({
+      res_log_quad[[i]] <- lagrange5q0(data = input)
+      print(str_c("fit log quad on period ", i))
+      
+      NMR[i] <- res_log_quad[[i]]$predictions[5,4]
+      IMR[i] <- res_log_quad[[i]]$predictions[16,4]
+      U5MR[i] <- res_log_quad[[i]]$predictions[22,4]
+      NMR_lower[i] <- res_log_quad[[i]]$predictions[5,5]
+      NMR_upper[i] <- res_log_quad[[i]]$predictions[5,6]
+      IMR_lower[i] <- res_log_quad[[i]]$predictions[16,5]
+      IMR_upper[i] <- res_log_quad[[i]]$predictions[16,6]
+      U5MR_lower[i] <- res_log_quad[[i]]$predictions[22,5]
+      U5MR_upper[i] <- res_log_quad[[i]]$predictions[22,6]
+    },
+      error = function(e){
+        message("log quad failed. Model equals NA.")
+        print(e)
+        NMR[i] <- NA
+        IMR[i] <- NA
+        U5MR[i] <- NA
+        NMR_lower[i] <- NA
+        NMR_upper[i] <- NA
+        IMR_lower[i] <- NA
+        IMR_upper[i] <- NA
+        U5MR_lower[i] <- NA
+        U5MR_upper[i] <- NA
+      }
+    )
     
-    res_log_quad[[i]] <- lagrange5q0(data = input)
-    print(str_c("fit log quad on period ", i))
-    
-    NMR[i] <- res_log_quad[[i]]$predictions[5,4]
-    IMR[i] <- res_log_quad[[i]]$predictions[16,4]
-    U5MR[i] <- res_log_quad[[i]]$predictions[22,4]
-    NMR_lower[i] <- res_log_quad[[i]]$predictions[5,5]
-    NMR_upper[i] <- res_log_quad[[i]]$predictions[5,6]
-    IMR_lower[i] <- res_log_quad[[i]]$predictions[16,5]
-    IMR_upper[i] <- res_log_quad[[i]]$predictions[16,6]
-    U5MR_lower[i] <- res_log_quad[[i]]$predictions[22,5]
-    U5MR_upper[i] <- res_log_quad[[i]]$predictions[22,6]
   }
   
   summary_lquad <- data.frame(model = model, period = period, NMR = NMR, IMR = IMR, U5MR = U5MR,
@@ -238,3 +255,37 @@ saveRDS(input, file = "../data/input_example.rds")
 #   Predicted value of k extrapolated. k < -1.1 or k > 1.5.
 # 30: In lagrange5q0(data = input) :
 #   Increase with age in the force of mortality (nMx) in confidence interval. Values extrapolated.
+
+
+#DEBUGGING ERROR: Error in optim(par = init_vals, fn = optim_fn, data = df[, c("I_i", "A_i",  : 
+# initial value in 'vmmin' is not finite
+
+
+
+#row 11 had an error, so I filtered to only have rows with the same distribution.
+
+all_files_filter <- all_files[str_detect(string = all_files, pattern = "lnormmean=15_lnormsd=22")]
+
+#sim_bad gets an error (use all_files_filter to see file path)
+sim_bad<- readRDS(str_c("../data/", all_files_filter[18]))
+
+#sim_good runs no problem.
+sim_good <- readRDS(str_c("../data/", all_files_filter[16]))
+view(sim_bad)
+view(sim_good)
+
+#fit surv_synthetic() with lognormal distribution WITHOUT adjusting for age heaping.
+
+#Using the below code to test run different dfs to see if they work. The issue comes when using lognormal WITHOUT adjusting
+#for age heaping.
+res_surv_lnorm <- surv_synthetic(df = sim_prac, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                 I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                 t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+
+#The following dfs, out of 18 (length of all_files_filter) encounter an error when running surv_synthetic.
+all_files_filter[1]
+all_files_filter[12]
+all_files_filter[15]
+all_files_filter[17]
+all_files_filter[18]
+
