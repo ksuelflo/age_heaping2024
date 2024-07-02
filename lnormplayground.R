@@ -4,44 +4,59 @@ library(pssst)
 library(knitr)
 library(SUMMER)
 
+#Randomly generated numbers, to then use in DHS alphabetical list to select countries
+random_nums <- sample(1:42, 10, replace = F)
+random_countries <- c("Burkina Faso, Cameroon", "Chad", "Eritrea", "Ghana", 
+                      "Madagascar", "Malawi", "Mauritania", "Nigeria", "Rwanda")
+
+
+
 folders <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Taylor/data")
-paths <- str_c("data/", folders, "/", str_subset(string = list.files(path = str_c(getwd(), "../data/", folders)), pattern = "DTA"))
 years <- as.numeric(str_extract(folders, "\\d+"))
 dfs <- vector(mode = "list", length = length(folders))
 countries <- str_extract(folders, ".*(?=_(\\d)*)")
-intervals <- list(c(2005,2010),c(2016,2021),c(1998,2003),c(2003,2008),c(2003,2008),c(2009,2014),c(2017,2022),c(2005,2010),c(2010,2015))
+intervals <- vector("list", length(years))
+
+for (i in seq_along(years)){
+  intervals[[i]] <- c(years[i] - 5, years[i])
+}
+
+intervals[[17]] <- c(2006, 2013)
+intervals[[18]] <- c(2011, 2018)
+
 mus <- rep(0,length(folders))
 sigmas <- rep(0, length(folders))
 
-
-
-for (i in seq_along(paths)){
+for (i in 18:length(folders)){
   print(str_c(countries[i], " ", years[i], " begins."))
-  raw_data <- read.dta13(paths[i])
+  path <- str_subset(string = list.files(path = str_c("../data/", folders[i])), pattern = ".DTA") 
+  raw_data <- read.dta13(str_c("../data/", folders[i], "/", path))
   cleaned_data <- format_dhs(df = raw_data, survey_year = years[i], period_boundaries = intervals[[i]])
   res <- surv_synthetic(cleaned_data, household = "household", strata = "strata", cluster = "cluster", weights = "weights", dist = "lognormal", numerical_grad = TRUE)
   dfs[[i]] <- res$result
   print(str_c(countries[i], " ", years[i], " was successful."))
 }
 
-raw_data <- read.dta13(paths[1])
-cleaned_data <- format_dhs(df = raw_data, survey_year = years[1], period_boundaries = intervals[[1]])
-res <- surv_synthetic(cleaned_data, household = "household", strata = "strata", cluster = "cluster", weights = "weights", dist = "lognormal", numerical_grad = TRUE)
-dfs[[1]] <- res$result
+print(str_c(countries[17], " ", years[17], " begins."))
+path <- str_subset(string = list.files(path = str_c("../data/", folders[17])), pattern = ".DTA") 
+raw_data <- read.dta13(str_c("../data/", folders[17], "/", path))
 
-raw <- read.dta13("../data/Burkina_Faso_2010/BFBR62FL.DTA")
-clean <- format_dhs(df = raw, survey_year = 2010, period_boundaries = c(2005,2010))
-res <- surv_synthetic(clean, household = "household", strata = "strata", cluster = "cluster", weights = "weights", dist = "lognormal", numerical_grad = TRUE)
+raw_data%>%
+  count(b2)
+view(raw_data)
 
-res$result
-
-for (i in seq_along(dfs)){
+for (i in 1:16){
+  mus[i] <- dfs[[i]]$mu_mean
+  sigmas[i] <- dfs[[i]]$log_sigma_mean
+}
+for (i in 18:21){
   mus[i] <- dfs[[i]]$mu_mean
   sigmas[i] <- dfs[[i]]$log_sigma_mean
 }
 
+view(raw_data)
 
-
-params_DHS <- data.frame(Country = countries, Year = years, mu = mus, sigma = sigmas)
-view(params_DHS)
+params_DHS <- data.frame(Country = countries, Year = years, mu = mus, sigma = sigmas)%>%
+  arrange(Year)
+view(params_DHS[-10,])
 kable(params_DHS, "latex")

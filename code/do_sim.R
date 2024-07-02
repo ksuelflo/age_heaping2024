@@ -14,6 +14,8 @@ all_files <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Ta
 #IMPORTANT: this data line is used to help fit logquad model.
 data("fin1933")
 
+is_bad <- rep(0, length(all_files))
+
 for (i in 3:length(all_files)){
   
   print(all_files[i])
@@ -26,15 +28,15 @@ for (i in 3:length(all_files)){
   
   #fit surv_synthetic() with lognormal distribution WITHOUT adjusting for age heaping.
   
-  res_surv_lnorm <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
-                                   I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
-                                   t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
-  
-  #Table of summary results. We will rbind to this data frame throughout the rest of the models. 
-  summary_results <- get_uncertainty_surv_synthetic(res_surv_lnorm)%>%
-    mutate(model = "surv_synth_lnorm", .before = period)
-  
-  print("fit lnorm model")
+  # res_surv_lnorm <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+  #                                  I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+  #                                  t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+  # 
+  # #Table of summary results. We will rbind to this data frame throughout the rest of the models. 
+  # summary_results <- get_uncertainty_surv_synthetic(res_surv_lnorm)%>%
+  #   mutate(model = "surv_synth_lnorm", .before = period)
+  # 
+  # print("fit lnorm model")
   #------------------------------------------------
   
   #fit surv_synthetic() with lognormal distribution ADJUSTING for age heaping (interval censored at 9-21 months)
@@ -274,6 +276,11 @@ sim_good <- readRDS(str_c("../data/", all_files_filter[16]))
 view(sim_bad)
 view(sim_good)
 
+sim_bad%>%
+  group_by(period)%>%
+  summarize(deaths = sum(event))
+
+
 #fit surv_synthetic() with lognormal distribution WITHOUT adjusting for age heaping.
 
 #Using the below code to test run different dfs to see if they work. The issue comes when using lognormal WITHOUT adjusting
@@ -288,4 +295,156 @@ all_files_filter[12]
 all_files_filter[15]
 all_files_filter[17]
 all_files_filter[18]
+
+all_files[5]
+all_files[26]ds
+
+
+sim <- readRDS(str_c("../data/", all_files[26]))
+sim_5 <- readRDS(str_c("../data/", all_files[5]))
+
+sim_5%>%
+  filter(across_boundary == 1)
+
+
+res_surv_lnorm <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                 I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                 t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+
+add_intervals <- sim%>%
+  mutate(left_interval = if_else(right_interval > 9 & right_interval <= 21, 9, left_interval),
+         right_interval = if_else(right_interval > 9 & right_interval <= 21, 21, right_interval),
+         across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%
+  group_by(id)%>%
+  mutate(across_boundary = if_else(sum(across_boundary) > 0, 1, 0))
+
+res_surv_lnorm_adjusted <- surv_synthetic(df = add_intervals, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                          I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                          t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+res_surv_lnorm_adjusted$result
+res_surv_lnorm$result
+
+res_surv_weibull <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                   I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                   t_1i = "right_interval", numerical_grad = TRUE, dist = "weibull")
+
+
+
+
+    #Setting seed for reproducibility
+    seed <- 1000*i + j
+    set.seed(seed)
+    
+    #Formatting clean_params for general_sim()
+    mus_lnorm <- rep(clean_params$lnorm_mean[i], 5)
+    sds_lnorm <- exp(rep(clean_params$lnorm_sd[i], 5))
+    period_lengths <- rep(clean_params$period_length[i], 5)
+    matrix_params <- cbind(mus_lnorm, sds_lnorm, period_lengths)
+    
+    #Simulated data BEFORE age heaping
+    before_heaping <- general_sim(num_child = clean_params$sample_size[i], param_matrix = matrix_params, distribution = "lognormal")
+    
+    print("Before heaping went well.")
+    #Formatting data for sim_age_heap()
+    ages <- c(clean_params$age_1[i], clean_params$age_2[i])
+    proportions <- c(clean_params$proportion_1[i], clean_params$proportion_2[i])
+    bottom_range <- c(as.numeric(str_extract(clean_params$range_1[i], "\\d*(?=,)")), as.numeric(str_extract(clean_params$range_2[i], "\\d*(?=,)")))
+    top_range <- c(as.numeric(str_extract(clean_params$range_1[i], "(?<=,)\\d*")), as.numeric(str_extract(clean_params$range_2[i], "(?<=,)\\d*")))
+    ranges <- cbind(bottom_range, top_range)
+  
+    #Simulated data AFTER age heaping
+    sim_with_heap <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportions, range_heap = ranges, sim_data = before_heaping)
+
+    
+    print("Heaping went well.")
+    #Clean data (interval censor is main bit.
+    cleaned_data <- clean_data(sim_with_heap)
+
+
+library(tidyr)
+    
+new_generate <- function(i, seed){
+  
+  #Setting seed for reproducibility
+  seed <- seed
+  set.seed(seed)
+  
+  #Formatting clean_params for general_sim()
+  mus_lnorm <- rep(clean_params$lnorm_mean[i], 5)
+  sds_lnorm <- exp(rep(clean_params$lnorm_sd[i], 5))
+  period_lengths <- rep(clean_params$period_length[i], 5)
+  matrix_params <- cbind(mus_lnorm, sds_lnorm, period_lengths)
+  
+  #Simulated data BEFORE age heaping
+  before_heaping <- general_sim(num_child = clean_params$sample_size[i], param_matrix = matrix_params, distribution = "lognormal")
+  
+  print("Before heaping went well.")
+  #Formatting data for sim_age_heap()
+  ages <- c(clean_params$age_1[i], clean_params$age_2[i])
+  proportions <- c(clean_params$proportion_1[i], clean_params$proportion_2[i])
+  bottom_range <- c(as.numeric(str_extract(clean_params$range_1[i], "\\d*(?=,)")), as.numeric(str_extract(clean_params$range_2[i], "\\d*(?=,)")))
+  top_range <- c(as.numeric(str_extract(clean_params$range_1[i], "(?<=,)\\d*")), as.numeric(str_extract(clean_params$range_2[i], "(?<=,)\\d*")))
+  ranges <- cbind(bottom_range, top_range)
+  
+  #Simulated data AFTER age heaping
+  sim_with_heap <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportions, range_heap = ranges, sim_data = before_heaping)
+  
+  
+  print("Heaping went well.")
+  #Clean data (interval censor is main bit.
+  cleaned_data <- clean_data(sim_with_heap)
+  
+  # add_intervals <- cleaned_data%>%
+  #   mutate(left_interval = if_else(right_interval > 9 & right_interval <= 21, 9, left_interval),
+  #          right_interval = if_else(right_interval > 9 & right_interval <= 21, 21, right_interval),
+  #          across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%
+  #   group_by(id)%>%
+  #   mutate(across_boundary = if_else(sum(across_boundary) > 0, 1, 0))
+  # 
+  # res_surv_lnorm_adjusted <- surv_synthetic(df = add_intervals, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+  #                                           I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+  #                                           t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+  # 
+  res_surv_lnorm <- surv_synthetic(df = cleaned_data, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                   I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                   t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal", init_vals = NA)
+}
+
+for (j in 1:20){
+  print(j)
+  new_generate(11, j)
+}
+
+
+sim_5 <- readRDS(str_c("../data/", all_files[5]))
+
+res_surv_lnorm <- surv_synthetic(df = sim_5, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                 I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                 t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal", init_vals = c(rep(exp(2), 5),15,15,15,15,15))
+
+
+
+
+new_sim_row_11 <- new_generate(11)
+
+all_files[5]
+
+
+
+
+res_surv_lnorm <- surv_synthetic(df = sim_5, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                 I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                 t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
+
+sim_5
+
+view(new_sim_row_11)
+
+
+
+
+
+
+
+
 

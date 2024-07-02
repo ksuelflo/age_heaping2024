@@ -4,8 +4,10 @@ source("sim_functions.R")
 
 #Simulation settings as found in overleaf.
 
-lnorm_mean_vec <- c(15,20)
-lnorm_sd_vec <- c(2,2.2)
+#For lnorm: We only want (12, 1.9), (20,2.1), (15, 2.1), 20(2.3)
+
+lnorm_mean_vec <- c(12,15,20)
+lnorm_sd_vec <- c(1.9,2.1,2.3)
 sample_size_vec <- c(100,500)
 age_1_vec <- 12
 # age_2_vec <- c(NA, 6,60)
@@ -13,7 +15,7 @@ range_1_vec <- c("9,21", "6,18", "8,24")
 # range_2_vec <- c(NA, "3,9", "57, 60")
 period_length_vec <- c(60)
 periods_vec <- 5
-proportion_1_vec <- c(.10,.20,.50)
+proportion_1_vec <- c(0,.10,.20,.50)
 # proportion_2_vec <- c(.05,.10)
 
 
@@ -28,7 +30,15 @@ proportion_1_vec <- c(.10,.20,.50)
 clean_params <- expand.grid(lnorm_mean = lnorm_mean_vec, lnorm_sd = lnorm_sd_vec, sample_size = sample_size_vec, age_1 = age_1_vec, 
                           range_1 = range_1_vec, period_length = period_length_vec, 
                           periods = periods_vec, proportion_1 = proportion_1_vec, stringsAsFactors = FALSE)
-view(clean_params)
+
+clean_params_2 <- clean_params%>%
+  mutate(double = lnorm_sd + lnorm_mean)
+
+clean_params_3 <- clean_params_2%>%
+  filter(double %in% c(13.9, 17.3, 17.1, 22.3))%>%
+  dplyr::select(-double)
+  
+
 #Filtering out combos to only include plausible combinations.
 
 #Code for second age heaping.
