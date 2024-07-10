@@ -142,8 +142,6 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
   already_died <- FALSE
   curr_period <- 1
   
-  start <- Sys.time()
-  
   for (i in seq_along(ids)){
     
     # If the child already died in an earlier period, skip to the else statement. 
@@ -227,8 +225,6 @@ general_sim <- function(num_child, param_matrix, distribution = "weibull"){
     }
     
   }
-  end <- Sys.time()
-  print(start-end)
   
   sim_df$t <- t
   sim_df$event <- event
@@ -256,6 +252,14 @@ sim_age_heap <- function(ages_at_heaping, proportion_heap, range_heap, sim_data)
   #Time and event for each observation. 
   times <- sim_data%>%pull(t)
   events <- sim_data%>%pull(event)
+  
+  #Checking if proportion is 0 AKA checking if age heaping should occur or not.
+  if (sum(proportion_heap) == 0){
+    return (sim_data%>%
+              mutate(old_times = times,
+                     binom_heap = 0))
+  }
+
   #Emptu container with which to put intervals into. 
   intervals <- vector("list", length = length(ages_at_heaping))
   #empty vector, which will be populated with a binomial distribution: Either the observation will have their time at event heaped, or
@@ -348,7 +352,18 @@ clean_data <- function(sims){
     group_by(id)%>%
     mutate(left_interval = if_else(length(unique(left_interval)) > 1, max(left_interval), min(left_interval)))%>%
     mutate(right_interval = if_else(length(unique(right_interval)) > 1, min(right_interval), max(right_interval)))%>%
-    mutate(across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))
+    mutate(across_boundary = if_else(age_at_begin > left_interval & age_at_begin < right_interval, 1, 0))%>%
+    ungroup()%>%
+    mutate(right_interval = if_else(period == 5 & binom_heap == 1 & max_age <= left_interval, 1000, right_interval),
+           interval_indicator = if_else(period == 5 & binom_heap == 1 & max_age <= left_interval, 0, interval_indicator),
+           right_censor_age = if_else(period == 5 & binom_heap == 1 & max_age <= left_interval, max_age, right_censor_age),
+           left_interval = if_else(period == 5 & binom_heap == 1 & max_age <= left_interval, 1000, left_interval))%>%
+           # binom_heap = if_else(period == 5 & binom_heap == 1 & max_age < left_interval, 0, binom_heap))%>%
+    group_by(id)%>%
+    mutate(interval_indicator = if_else(sum(interval_indicator) == 4, 0, min(interval_indicator)),
+           left_interval = max(left_interval),
+           right_interval = max(right_interval),
+           right_censor_age = min(right_censor_age))
   
   return (clean_df)
 }

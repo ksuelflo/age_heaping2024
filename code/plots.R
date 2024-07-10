@@ -5,6 +5,8 @@ library(knitr)
 library(SUMMER)
 library(survey)
 library(ggnewscale)
+library(purrr)
+library(latex2exp)
 
 folders <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Taylor/data")
 years <- as.numeric(str_extract(folders, "\\d+"))
@@ -93,78 +95,89 @@ results_longer <- results_longer[-(113:118),]
 
 saveRDS(results_longer, "../plots/dhs_estimates_df_for_plot.rds")
 
+
+
+#read rds
+results_loaded <- readRDS("../plots/dhs_estimates_df_for_plot.rds")
+
+# view(results_loaded)
 #Getting lnorm distribution.
 #Using the same 4 different lnorm parameter settings as in our simulation: (12, 1.9), (20,2.1), (15, 2.1), 20(2.3)
 ages <- 0:60
-y <- list(dlnorm(ages, 15, exp(2.1)), dlnorm(ages, 15, exp(2.3)), dlnorm(ages, 12, exp(1.9)), dlnorm(ages, 20, exp(2.3)))
-y_update <- list(rep(0, length(y[[1]])), rep(0, length(y[[1]])),rep(0, length(y[[1]])),rep(0, length(y[[1]])))
-y
-for (i in seq_along(y)){
-  
-  for (j in seq_along(y[[i]])){
-    #Applying discrete hazards method to lnorm output. 
-    y_update[[i]][j] <- 1 - prod(1- y[[i]][1:j])
-  }
-}
+y <- list(plnorm(ages, 15, exp(2.1)), plnorm(ages, 15, exp(2.3)), plnorm(ages, 12, exp(1.9)), plnorm(ages, 20, exp(2.3)))
 
 #Building lnorm df, to use in plots.
-lnorm_data <- data.frame(y = list_c(y_update), age = rep(ages, 4), type = rep(c("lnorm(15, exp(2.1))", "lnorm(15, exp(2.3))", 
-                                                                                "lnorm(12, exp(1.9))", "lnorm(20, exp(2.3))"), each = 61))
+lnorm_data <- data.frame(y = list_c(y), age = rep(ages, 4), type = rep(c("15, 2.1", "15, 2.3", "12, 1.9", "20, 2.3"), each = 61))
 
 #Splitting up df into 3. Doing this purely to make 3 different plots, because if we made only one plot, there would be too many lines.
-results_subset_1 <- results_longer%>%
-  filter(country %in% c("Burkina_Faso", "Cameroon", "Chad"))
+results_subset_1 <- results_loaded%>%
+  filter(survey_year < 2011)
 
-results_subset_2 <- results_longer%>%
-  filter(country %in% c("Ghana", "Madagascar", "Malawi", "Mauritania"))
+results_subset_2 <- results_loaded%>%
+  filter(survey_year < 2018 & survey_year >2010)
 
-results_subset_3 <- results_longer%>%
-  filter(country %in% c("Namibia", "Nigeria", "Rwanda"))
+results_subset_3 <- results_loaded%>%
+  filter(survey_year > 2017)
 
-#Burkina_Faso, Cameroon, and Chad plot, with lognormal curves overlayed.
-p_bf_cm_td <- ggplot()+
-  geom_line(data = lnorm_data, aes(x = age, y = y, linetype = type))+
+#Survey years less than 2011 plot, with lognormal curves overlayed.
+p_2010 <- ggplot()+
+  geom_line(data = lnorm_data, aes(x = age, y = y, linetype = type, linewidth = type))+
   geom_line(data = results_subset_1, aes(x = age, y = y, group = interaction(country, survey_year), 
                                        color = interaction(country, survey_year)))+
-  labs(x = "age (months)", y = "mortality rate", color = "Country Year", linetype = "lognormal curves", caption = "For the curve 'lnorm(12, exp(1.9))',
-  12 is equal to the parameter mu, and exp(1.9) is equal to the parameter sigma. The resulting values are updated using the discrete hazards method.")+
-  scale_linewidth_manual(values = c(.5, .5, .5, .5))+
-  scale_color_brewer(palette = "Set1")+
-  theme_classic()
+  labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
+  scale_linewidth_manual(values = c(1, 1, 1, 1))+
+  guides(linewidth = "none")+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_1$country, survey_year = results_subset_1$survey_year))+
+  scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
+  theme_classic()+
+  theme(axis.title.y = element_text(size = 15))
 
-p_bf_cm_td
-ggsave(filename = "p_bf_cm_td.png", plot = p_bf_cm_td, path = "../plots")
+p_2010
+ggsave(filename = "p_2010.png", plot = p_2010, path = "../plots")
 
 #Ghana, Madagascar, Malawi, and Mauritania plot, with lognormal curves overlayed.
-p_gh_md_mw_ma <- ggplot()+
+p_2015 <- ggplot()+
   geom_line(data = lnorm_data, aes(x = age, y = y, linetype = type))+
   geom_line(data = results_subset_2, aes(x = age, y = y, group = interaction(country, survey_year), 
                                          color = interaction(country, survey_year)))+
-  labs(x = "age (months)", y = "mortality rate", color = "Country Year", linetype = "lognormal curves", caption = "Lognormal curve uses mean of 15, sd of exp(2.2).
-       The resulting values are updated using the discrete hazards method.")+
+  labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
   scale_linewidth_manual(values = c(.5, .5, .5, .5))+
-  scale_color_brewer(palette = "Set2")+
-  theme_classic()
+  scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_2$country, survey_year = results_subset_2$survey_year))+
+  theme_classic()+
+  theme(axis.title.y = element_text(size = 15))
 
-p_gh_md_mw_ma
-ggsave(filename = "p_gh_md_mw_ma.png", plot = p_gh_md_mw_ma, path = "../plots")
+p_2015
+ggsave(filename = "p_2015a.png", plot = p_2015, path = "../plots")
 
 #Namibia, Nigeria, and Rwanda plot, with lognormal curves overlayed.
-p_na_ng_rw <- ggplot()+
+p_2022 <- ggplot()+
   geom_line(data = lnorm_data, aes(x = age, y = y, linetype = type))+
   geom_line(data = results_subset_3, aes(x = age, y = y, group = interaction(country, survey_year), 
                                          color = interaction(country, survey_year)))+
-  labs(x = "age (months)", y = "mortality rate", color = "Country Year", linetype = "lognormal curves", caption = "Lognormal curve uses mean of 15, sd of exp(2.2).
-       The resulting values are updated using the discrete hazards method.")+
+  labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
   scale_linewidth_manual(values = c(.5, .5, .5, .5))+
-  scale_color_brewer(palette = "Set3")+
-  theme_classic()
+  scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_3$country, survey_year = results_subset_3$survey_year))+
+  theme_classic()+
+  theme(axis.title.y = element_text(size = 15))
 
-p_na_ng_rw
-ggsave(filename = "p_na_ng_rw.png", plot = p_na_ng_rw, path = "../plots")
+p_2022
+ggsave(filename = "p_2022.png", plot = p_2022, path = "../plots")
 
 
 
+#Helper functions for three plots.
 
+rename_color_legend <- function(country, survey_year){
+  #Getting all of the country year values from plot
+  string <- unique(interaction(country, survey_year))
+  #replacing dots with space and parenthesis
+  in_progress <- str_replace(string, "\\.", " \\(")
+  #adding right parenthesis
+  finished <- str_c(in_progress, ")")
+  #returning completed vector, with any underscores removed (for Burkina Faso)
+  return (str_replace_all(finished, "_", " "))
+}
 
 
