@@ -1,5 +1,4 @@
 source("sim_functions.R")
-library(tidyr)
 
 #Ages at heap, ranges, and proportions are all split up into two columns. This makes things easier. 
 
@@ -34,7 +33,6 @@ clean_params_2 <- clean_params%>%
 clean_params_3 <- clean_params_2%>%
   filter(double %in% c(13.9, 17.3, 17.1, 22.3))%>%
   dplyr::select(-double)
-view(clean_params_3)
 
 #Code for second age heaping.
 
@@ -49,9 +47,16 @@ view(clean_params_3)
 #Looping through each simulation setting
 for (i in 1:nrow(clean_params_3)){
   
-  if (i != 54){
-    next
-  }
+  # if (i != 54){
+  #   next
+  # }
+  
+  foldername <- str_c("sim_ROW=", i, "_lnormmean=", clean_params_3$lnorm_mean[i], "_lnormsd=", clean_params_3$lnorm_sd[i],
+                    "_samplesize=", clean_params_3$sample_size[i], "_age=", clean_params_3$age_1[i], "_range=", clean_params_3$range_1[i], 
+                    "_periodlength=", clean_params_3$period_length[i], "_periods=", clean_params_3$periods[i], 
+                    "_proportion=", clean_params_3$proportion_1[i])
+  
+  dir.create(path = str_c("../data/", foldername))
   
   start <- Sys.time()
   
@@ -109,7 +114,7 @@ for (i in 1:nrow(clean_params_3)){
     filename <- str_replace_all(filename, ",", "")
     filename <- str_replace_all(filename, "\\.", "")
     print(filename)
-    saveRDS(cleaned_data, file = str_c("../data/", filename, ".rds"))
+    saveRDS(cleaned_data, file = str_c("../data/", foldername, "/", filename, ".rds"))
   }
   
   end <- Sys.time()

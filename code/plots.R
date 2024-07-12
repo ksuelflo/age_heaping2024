@@ -96,6 +96,21 @@ results_longer <- results_longer[-(113:118),]
 saveRDS(results_longer, "../plots/dhs_estimates_df_for_plot.rds")
 
 
+#IF WANTING TO CHANGE PLOTS, START HERE:
+
+#Helper functions for three plots.
+
+rename_color_legend <- function(country, survey_year){
+  #Getting all of the country year values from plot
+  string <- unique(interaction(country, survey_year))
+  #replacing dots with space and parenthesis
+  in_progress <- str_replace(string, "\\.", " \\(")
+  #adding right parenthesis
+  finished <- str_c(in_progress, ")")
+  #returning completed vector, with any underscores removed (for Burkina Faso)
+  return (str_replace_all(finished, "_", " "))
+}
+
 
 #read rds
 results_loaded <- readRDS("../plots/dhs_estimates_df_for_plot.rds")
@@ -111,13 +126,16 @@ lnorm_data <- data.frame(y = list_c(y), age = rep(ages, 4), type = rep(c("15, 2.
 
 #Splitting up df into 3. Doing this purely to make 3 different plots, because if we made only one plot, there would be too many lines.
 results_subset_1 <- results_loaded%>%
-  filter(survey_year < 2011)
+  filter(survey_year < 2011)%>%
+  arrange(desc(survey_year))
 
 results_subset_2 <- results_loaded%>%
-  filter(survey_year < 2018 & survey_year >2010)
+  filter(survey_year < 2018 & survey_year >2010)%>%
+  arrange(desc(survey_year))
 
 results_subset_3 <- results_loaded%>%
-  filter(survey_year > 2017)
+  filter(survey_year > 2017)%>%
+  arrange(desc(survey_year))
 
 #Survey years less than 2011 plot, with lognormal curves overlayed.
 p_2010 <- ggplot()+
@@ -127,13 +145,13 @@ p_2010 <- ggplot()+
   labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
   scale_linewidth_manual(values = c(1, 1, 1, 1))+
   guides(linewidth = "none")+
-  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_1$country, survey_year = results_subset_1$survey_year))+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_1$country, survey_year = results_subset_1$survey_year), option = "H")+
   scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
   theme_classic()+
   theme(axis.title.y = element_text(size = 15))
 
 p_2010
-ggsave(filename = "p_2010.png", plot = p_2010, path = "../plots")
+ggsave(filename = "p_2010.png", plot = p_2010, path = "../plots", width = 100, height = 50)
 
 #Ghana, Madagascar, Malawi, and Mauritania plot, with lognormal curves overlayed.
 p_2015 <- ggplot()+
@@ -143,12 +161,12 @@ p_2015 <- ggplot()+
   labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
   scale_linewidth_manual(values = c(.5, .5, .5, .5))+
   scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
-  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_2$country, survey_year = results_subset_2$survey_year))+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_2$country, survey_year = results_subset_2$survey_year), option = "H")+
   theme_classic()+
   theme(axis.title.y = element_text(size = 15))
 
 p_2015
-ggsave(filename = "p_2015a.png", plot = p_2015, path = "../plots")
+ggsave(filename = "p_2015a.png", plot = p_2015, path = "../plots", width = 100, height = 50)
 
 #Namibia, Nigeria, and Rwanda plot, with lognormal curves overlayed.
 p_2022 <- ggplot()+
@@ -158,26 +176,11 @@ p_2022 <- ggplot()+
   labs(x = TeX("$x$"), y = TeX("$_xq_0$"), color = "Country (Survey Year)", linetype = TeX("Lognormal Parameters ($\\mu, \\sigma$)"))+
   scale_linewidth_manual(values = c(.5, .5, .5, .5))+
   scale_linetype(labels = c(TeX("(15, $e^{2.1}$)"), TeX("(15, $e^{2.3}$)"),TeX("(12, $e^{1.9}$)"),TeX("(20, $e^{2.3}$)")))+
-  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_3$country, survey_year = results_subset_3$survey_year))+
+  scale_color_viridis_d(labels = rename_color_legend(country = results_subset_3$country, survey_year = results_subset_3$survey_year), option = "H")+
   theme_classic()+
   theme(axis.title.y = element_text(size = 15))
 
 p_2022
-ggsave(filename = "p_2022.png", plot = p_2022, path = "../plots")
-
-
-
-#Helper functions for three plots.
-
-rename_color_legend <- function(country, survey_year){
-  #Getting all of the country year values from plot
-  string <- unique(interaction(country, survey_year))
-  #replacing dots with space and parenthesis
-  in_progress <- str_replace(string, "\\.", " \\(")
-  #adding right parenthesis
-  finished <- str_c(in_progress, ")")
-  #returning completed vector, with any underscores removed (for Burkina Faso)
-  return (str_replace_all(finished, "_", " "))
-}
+ggsave(filename = "p_2022.png", plot = p_2022, path = "../plots", width = 100, height = 50)
 
 
