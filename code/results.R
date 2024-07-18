@@ -19,7 +19,7 @@ for (i in seq_along(summary_folders)){
   for (j in seq_along(summaries)){
     
     summary <- readRDS(str_c("../summaries", summary_folders[i], summaries[j]))%>%
-      mutate(seed = str_extract(summaries[j], ))
+      mutate(seed = str_extract(summaries[j], pattern = "(?<=seed=)\\d*"))
     container[[j]] <- summary
     
   }
@@ -33,6 +33,7 @@ for (i in seq_along(summary_folders)){
 
 #looping through each sim setting and combining each seed into one big df. 
 for (k in seq_along(big_container)){
+  
   
   big_container[[k]] <- bind_rows(big_container[[k]])
   

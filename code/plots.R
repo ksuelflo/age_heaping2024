@@ -7,6 +7,7 @@ library(survey)
 library(ggnewscale)
 library(purrr)
 library(latex2exp)
+library(tidyr)
 
 folders <- list.files(path = "/Users/kylesuelflow/Macalester-Stuff/Research-Taylor/data")
 years <- as.numeric(str_extract(folders, "\\d+"))
@@ -123,6 +124,8 @@ y <- list(plnorm(ages, 15, exp(2.1)), plnorm(ages, 15, exp(2.3)), plnorm(ages, 1
 
 #Building lnorm df, to use in plots.
 lnorm_data <- data.frame(y = list_c(y), age = rep(ages, 4), type = rep(c("15, 2.1", "15, 2.3", "12, 1.9", "20, 2.3"), each = 61))
+
+View(results_loaded)
 
 #Splitting up df into 3. Doing this purely to make 3 different plots, because if we made only one plot, there would be too many lines.
 results_subset_1 <- results_loaded%>%
