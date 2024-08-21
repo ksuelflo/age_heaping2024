@@ -13,6 +13,7 @@ library(foreach)
 library(doMC)
 library(ggplot2)
 library(gghighlight)
+library(pssst)
 registerDoMC(cores = 6)
 
 #Getting country codes and country names for DHS countries
@@ -42,20 +43,13 @@ downloads <- get_datasets(datasets$FileName)
 #Setting up containers
 years_df <- rep(0, length(downloads))
 
-
-#PARALLEL
-#This for loop processes data and adds it to big container `dfs`
-
-df_container <- vector(mode = "list", length = length(downloads))
-
 #skipping 47 for now: It has an error with both v023 and v024 strata. And skipping 53, 83
 
 downloads[47]
 downloads[53]
 downloads[83]
 
-
-for (i in 84:length(downloads)){
+for (i in c(47,53,83)){
 
   #Reading in data
   print(i)
@@ -96,7 +90,7 @@ for (i in seq_along(countries)){
 summary_deaths <- vector(mode = "list", length = length(df_container))
 
 #This for loop wrangles data into monthly deaths by period. Included are all intervals of death.
-for (i in seq_along(df_container)){
+for (i in c(47,53,83)){
   #Checking dfs for NULL: There are many that had error with `format_dhs`, so they are null. We will skip those.
   if (is.null(df_container[[i]])){
     next
@@ -149,7 +143,7 @@ for (i in seq_along(df_container)){
 
 saveRDS(summary_deaths, file = "../output/summary.rds")
 
-summary_2 <- readRDS(file = "../output/summary.rds")
+summary_deaths <- readRDS(file = "../output/summary.rds")
 #Now to calculate heaping indexes. Some info about heaping index
 
 #Hill and Choi 2006 index:
@@ -172,7 +166,7 @@ summary_2 <- readRDS(file = "../output/summary.rds")
 indexed_dfs <- vector(mode = "list", length = length(summary_deaths))
 
 #Calculating heap indexes
-for (i in seq_along(summary_deaths)){
+for (i in c(47,53,83)){
   #Checking if the df didn't read in, we skip it.
   if (is.null(summary_deaths[[i]])){
     next
@@ -191,129 +185,13 @@ for (i in seq_along(summary_deaths)){
 plot_folders <- rep("", length(indexed_dfs))
 for (i in seq_along(indexed_dfs)){
   #dir.create(path = str_c("../plots/", str_replace_all(countries[i], pattern = "\\s", replacement = "-"), "_", years_df[i]))
-  plot_folders[i] <- str_c("../plots/", str_replace_all(countries[i], pattern = "\\s", replacement = "-"), "_", years_df[i])
+  plot_folders[i] <- str_c("../plots/", str_replace_all(countries[i], pattern = "\\s", replacement = "-"), "_", unique(indexed_dfs[[i]]$survey_year))
 }
 
 #Making a vector of ages that is numeric, to help make plots:
-numeric_ages <- c(1:24, 36, 48, 60)
+numeric_ages <- rep((1:24), 5)
 
+i<-1
+j<-1
 #Making plots for every period within every survey
-for (i in seq_along(indexed_dfs)){
-  df <- indexed_dfs[[i]]
-  if (is.null(df)){
-    next
-  }
-  for (j in 1:5){
-    df_periods <- df%>%
-      filter(period == j)%>%
-      dplyr::select(-int_60_inf)%>%
-      pivot_longer(names_to = "interval", values_to = "deaths", cols = !c(country, survey_year, p_begin, p_end, p, hillChoi1014, pullum1014))%>%
-      mutate(age = numeric_ages)
-    
-    p_death_dist <- df_periods%>%
-      ggplot(aes(x = age, y = deaths))+
-      geom_line()+
-      geom_point(size = 1.5)+
-      gghighlight(age ==13)+
-      labs(title = str_c(countries[i], " ", years_df[i]), subtitle = str_c("period ", j, " (", unique(df$p_begin), " - ", unique(df$p_end), ")"),
-           x = "Age at death (months)", y = "total")+
-      theme_minimal()+
-      theme(plot.title = element_text(hjust = 0.5, size = 20), 
-            plot.subtitle = element_text(hjust = .5))
-    
-    ggsave(filename = str_c(plot_folders[i], "/", "period_", j, "plot"), width = 300, height = 300)
-  }
-  
-  hill_p <- df%>%
-    ggplot(aes(x = p_end, y = hillChoi1014))+
-    geom_point(size = 1.5)+
-    geom_line()+
-    labs(title = str_c(countries[i], " ", years_df[i]), subtitle = "Heap index across five one year periods",
-         y = "Heap Index", x = "year")+
-    theme_minimal()+
-    theme(plot.title = element_text(hjust = 0.5, size = 20), 
-          plot.subtitle = element_text(hjust = .5))
-}
-
-#Selecting only the columns we need, and filtering out any country years where no deaths occurred at 12 months
-# or no deaths occurred in the 10-14 month period.
-big_summary_df <- bind_rows(indexed_dfs)%>%
-  dplyr::select(c(country, survey_year, p, p_begin, p_end, hillChoi1014, pullum1014))%>%
-  filter(hillChoi1014 != 0)%>%
-  filter(!is.nan(hillChoi1014))
-  
-View(big_summary_df)
-
-#Different version of dfs, this one grouped by country/survey year. 
-#Again, start with `summary_deaths`
-
-summary_deaths <- readRDS(file = "../output/summary.rds")
-
-#Create new container
-
-survey_country_dfs <- vector(mode = "list", length = length(summary_deaths))
-
-for (i in seq_along(summary_deaths)){
-  #Checking if the df didn't read in, we skip it.
-  if (is.null(summary_deaths[[i]])){
-    next
-  }
-  
-  #Doing same thing as above: calculating heap index. HOWEVER:
-  # We are using the sum of deaths, AKA the total amount of deaths across each of the 5 periods.
-  
-  df <- summary_deaths[[i]]%>%
-    mutate(hillChoi1014 = sum(int_12_13)*5/(sum(int_10_11) + sum(int_11_12) + sum(int_12_13)
-                                            + sum(int_13_14) + sum(int_14_15)),
-           pullum1014 = (sum(int_12_13) - ((sum(int_10_11) + sum(int_11_12) + sum(int_12_13) + 
-                                              sum(int_13_14) + sum(int_14_15))/5))/
-             ((sum(int_10_11) + sum(int_11_12) + sum(int_12_13) + sum(int_13_14) + sum(int_14_15))/5)*100)%>%
-    mutate(sum_int_10_11 = sum(int_10_11),
-           sum_int_11_12 = sum(int_11_12),
-           sum_int_12_13 = sum(int_12_13),
-           sum_int_13_14 = sum(int_13_14),
-           sum_int_14_15 = sum(int_14_15))
-  survey_country_dfs[[i]] <- df
-  
-  
-}
-
-#Same as above.
-big_survey_country_df <- bind_rows(survey_country_dfs)%>%
-  dplyr::select(c(country, survey_year, hillChoi1014, pullum1014))%>%
-  filter(hillChoi1014 != 0)%>%
-  filter(!is.nan(hillChoi1014))
-
-#Only getting every 5th row (AKA Getting each country.)
-big_survey_country_df <- big_survey_country_df[seq(1, nrow(big_survey_country_df), by = 5), ]
-  
-View(big_survey_country_df)
-  
-#Plot of heap index across all surveys and periods.
-p_1 <- big_summary_df%>%
-  ggplot(aes(x = hillChoi1014))+
-  geom_histogram(color = "black", fill = "grey")+
-  scale_x_continuous(limits = c(0,6), expand = c(0,0))+
-  scale_y_continuous(expand = c(0,0))+
-  labs(title = "Heap Index for SSA DHS surveys since 2005", x = "Heap Index", caption = "Heap Index is calculated by dividing the number of deaths at 12 months by 1/5 the amount of deaths from 10-14 months.")+
-  theme_classic()+
-  theme(plot.caption = element_text(hjust = .5))
-
-#Save plot
-ggsave(filename = "../plots/heap_index_all_periods.png", plot = p_1)
-
-big_survey_country_df <- big_survey_country_df%>%
-  mutate(survey_year = if_else(survey_year < 2005, 2005, survey_year))
-
-big_survey_country_df%>%
-  ggplot(aes(x = survey_year, y = hillChoi1014))+
-  geom_point()+
-  geom_hline(yintercept = 1)+
-  scale_y_continuous(limits = c(0,4), expand = c(0,0))+
-  theme_classic()
-  
-
-
-
-
 
