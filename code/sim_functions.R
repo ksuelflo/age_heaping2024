@@ -4,6 +4,7 @@
 
 
 ## Load necessary packages up front
+# add lib.loc argument, with relative path of packages.
 library(survival)
 library(dplyr)
 library(flexsurv)
@@ -13,6 +14,8 @@ library(logquad5q0)
 library(SUMMER)
 library(tidyr)
 library(stringr)
+library(foreach)
+library(doMC)
 
 
 # Functions ---------------------------------------------------------------
@@ -615,7 +618,7 @@ get_uncertainty_surv_synthetic <- function(res_surv_synthetic,
   var_est <- res_surv_synthetic$variance
   
   # sample from multivariate normal
-  samps <- mvrnorm(n = 1000, mu = means, Sigma = var_est)
+  samps <- MASS::mvrnorm(n = 1000, mu = means, Sigma = var_est)
   
   # for each sample, compute estimates of NMR, IMR, U5MR 
   # one matrix of samples per summary measures, columns by period
@@ -631,7 +634,7 @@ get_uncertainty_surv_synthetic <- function(res_surv_synthetic,
       # for lognormal, c(log_sigma_mean for each period, log_1overmu_mean for each period)
       log_sigma_ests <- samps[i,][1:n_periods]
       log_1overmu_ests <- samps[i,][(n_periods + 1):(n_periods * 2)]
-      
+
       mu_ests <- 1/exp(log_1overmu_ests)
       sigma_ests <- exp(log_sigma_ests)
       
@@ -668,7 +671,6 @@ get_uncertainty_surv_synthetic <- function(res_surv_synthetic,
                        IMR_upper = apply(imr_samps, 2, quantile, 0.975),
                        U5MR_lower = apply(u5mr_samps, 2, quantile, 0.025),
                        U5MR_upper = apply(u5mr_samps, 2, quantile, 0.975))
-  
   return(ret_df)
 }
 

@@ -4,6 +4,7 @@ source("sim_functions.R")
 
 #Simulation settings as found in overleaf.
 
+registerDoMC(4)
 #For lnorm: We only want (12, 1.9), (20,2.1), (15, 2.1), 20(2.3)
 
 lnorm_mean_vec <- c(12,15,20)
@@ -17,6 +18,7 @@ period_length_vec <- c(60)
 periods_vec <- 5
 proportion_1_vec <- c(0,.10,.20,.50)
 # proportion_2_vec <- c(.05,.10)
+
 
 
 #Every possible combination of sim settings found using expand.grid. Even ones that aren't plausible.
@@ -34,6 +36,7 @@ clean_params_3 <- clean_params_2%>%
   filter(double %in% c(13.9, 17.3, 17.1, 22.3))%>%
   dplyr::select(-double)
 
+clean_params_3 <- clean_params_3[c(5,6,39),]
 #Code for second age heaping.
 
 # clean_params <- raw_expand%>%
@@ -43,25 +46,27 @@ clean_params_3 <- clean_params_2%>%
 #          )
 
 
+#Setting up directory structure: Only need to do this once.
+
+folders <- rep("", nrow(clean_params_3))
+
+for (i in 1:nrow(clean_params_3)){
+  foldername <- str_c("sim_ROW=", i, "_lnormmean=", clean_params_3$lnorm_mean[i], "_lnormsd=", clean_params_3$lnorm_sd[i],
+                      "_samplesize=", clean_params_3$sample_size[i], "_age=", clean_params_3$age_1[i], "_range=", clean_params_3$range_1[i],
+                      "_periodlength=", clean_params_3$period_length[i], "_periods=", clean_params_3$periods[i],
+                      "_proportion=", clean_params_3$proportion_1[i])
+  dir.create(path = str_c("../data/", foldername))
+  folders[i] <- foldername
+}
+
+#PARALLEL
+
+start_time <- Sys.time()
 
 #Looping through each simulation setting
-for (i in 1:nrow(clean_params_3)){
-  
-  # if (i != 54){
-  #   next
-  # }
-  
-  foldername <- str_c("sim_ROW=", i, "_lnormmean=", clean_params_3$lnorm_mean[i], "_lnormsd=", clean_params_3$lnorm_sd[i],
-                    "_samplesize=", clean_params_3$sample_size[i], "_age=", clean_params_3$age_1[i], "_range=", clean_params_3$range_1[i], 
-                    "_periodlength=", clean_params_3$period_length[i], "_periods=", clean_params_3$periods[i], 
-                    "_proportion=", clean_params_3$proportion_1[i])
-  
-  dir.create(path = str_c("../data/", foldername))
-  
-  start <- Sys.time()
-  
+stuff <- foreach (i = 1:nrow(clean_params_3)) %:%
   #Simulating 1000 times (getting 1000 data frames) for each setting
-  for (j in 1: 1){
+  foreach (j = 1: 1)%dopar%{
     
     #Setting seed for reproducibility
     seed <- 1000*i + j
@@ -76,7 +81,6 @@ for (i in 1:nrow(clean_params_3)){
     #Simulated data BEFORE age heaping
     before_heaping <- general_sim(num_child = clean_params_3$sample_size[i], param_matrix = matrix_params, distribution = "lognormal")
     
-    print("Before heaping went well.")
     #Formatting data for sim_age_heap()
     ages <- c(clean_params_3$age_1[i], clean_params_3$age_2[i])
     proportions <- c(clean_params_3$proportion_1[i], clean_params_3$proportion_2[i])
@@ -87,8 +91,6 @@ for (i in 1:nrow(clean_params_3)){
     #Simulated data AFTER age heaping
     sim_with_heap <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportions, range_heap = ranges, sim_data = before_heaping)
 
-    
-    print("Heaping went well.")
     #Clean data (interval censor is main bit).
     cleaned_data <- clean_data(sim_with_heap)
     
@@ -113,25 +115,88 @@ for (i in 1:nrow(clean_params_3)){
     #Removing both periods and commas. Based on context of numbers, we don't need them, as they mess up files.
     filename <- str_replace_all(filename, ",", "")
     filename <- str_replace_all(filename, "\\.", "")
-    print(filename)
-    saveRDS(cleaned_data, file = str_c("../data/", foldername, "/", filename, ".rds"))
+    print(str_c("finished with ", filename))
+    saveRDS(cleaned_data, file = str_c("../data/", folders[i], "/", filename, ".rds"))
+    cleaned_data
   }
+
+
+end_time <- Sys.time()
+time_taken <- end_time - start_time
+time_taken
+
+start_time <- Sys.time()
+saveRDS(stuff, "../../data/big_rds")
+end_time <- Sys.time()
+time_taken <- end_time - start_time
+time_taken
+
+#TOOK 11 minutes
+
+#NON PARALLEL
+
+#Looping through each simulation setting
+for (i in 1:nrow(clean_params_3)){
   
-  end <- Sys.time()
-  print(start-end)
+  #Simulating 1000 times (getting 1000 data frames) for each setting
+  for (j in 1: 1){
+    
+    #Setting seed for reproducibility
+    seed <- 1000*i + j
+    set.seed(seed)
+    
+    #Formatting clean_params for general_sim()
+    mus_lnorm <- rep(clean_params_3$lnorm_mean[i], 5)
+    sds_lnorm <- exp(rep(clean_params_3$lnorm_sd[i], 5))
+    period_lengths <- rep(clean_params_3$period_length[i], 5)
+    matrix_params <- cbind(mus_lnorm, sds_lnorm, period_lengths)
+    
+    #Simulated data BEFORE age heaping
+    before_heaping <- general_sim(num_child = clean_params_3$sample_size[i], param_matrix = matrix_params, distribution = "lognormal")
+    
+    #Formatting data for sim_age_heap()
+    ages <- c(clean_params_3$age_1[i], clean_params_3$age_2[i])
+    proportions <- c(clean_params_3$proportion_1[i], clean_params_3$proportion_2[i])
+    bottom_range <- c(as.numeric(str_extract(clean_params_3$range_1[i], "\\d*(?=,)")), as.numeric(str_extract(clean_params_3$range_2[i], "\\d*(?=,)")))
+    top_range <- c(as.numeric(str_extract(clean_params_3$range_1[i], "(?<=,)\\d*")), as.numeric(str_extract(clean_params_3$range_2[i], "(?<=,)\\d*")))
+    ranges <- cbind(bottom_range, top_range)
+    
+    #Simulated data AFTER age heaping
+    sim_with_heap <- sim_age_heap(ages_at_heaping = ages, proportion_heap = proportions, range_heap = ranges, sim_data = before_heaping)
+    
+    #Clean data (interval censor is main bit).
+    cleaned_data <- clean_data(sim_with_heap)
+    
+    # Checking for NA values, to convert them to character "NA". THIS IS FOR FILE NAMING, THAT IS ALL. THIS IS FOR MULTIPLE AGES
+    # if (is.na(clean_params$age_2[i])){
+    #   age_2 <- "NA"
+    #   proportion_2 <- "NA"
+    #   range_2 <- "NA"
+    # }
+    # #If not NA, just use normal.
+    # else{
+    #   age_2 <- clean_params$age_2[i]
+    #   proportion_2 <- clean_params$proportion_2[i]
+    #   range_2 <- clean_params$range_2[i]
+    # }
+    
+    #Build out file name.
+    filename <- str_c("sim_ROW=", i, "_numSIM=", j, "_lnormmean=", clean_params_3$lnorm_mean[i], "_lnormsd=", clean_params_3$lnorm_sd[i],
+                      "_samplesize=", clean_params_3$sample_size[i], "_age=", clean_params_3$age_1[i], "_range=", clean_params_3$range_1[i], 
+                      "_periodlength=", clean_params_3$period_length[i], "_periods=", clean_params_3$periods[i], 
+                      "_proportion=", clean_params_3$proportion_1[i], "_seed=", seed)
+    #Removing both periods and commas. Based on context of numbers, we don't need them, as they mess up files.
+    filename <- str_replace_all(filename, ",", "")
+    filename <- str_replace_all(filename, "\\.", "")
+    print(str_c("finished with ", filename))
+    saveRDS(cleaned_data, file = str_c("../data/", folders[i], "/", filename, ".rds"))
+  }
 }
+end_time <- Sys.time()
+time_taken <- end_time - start_time
+time_taken
 
-
-# res_surv_weibull <- surv_synthetic(df = cleaned_data, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
-#                                    I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
-#                                    t_1i = "right_interval", numerical_grad = TRUE, dist = "lognormal")
-# 
-# cleaned_data_2 <- cleaned_data%>%
-#   mutate(indicator = if_else(period == 5 & binom_heap == 1 & max_age < left_interval, 1, 0))
-# 
-# cleaned_data_2%>%
-#   filter(indicator == 1)
-
+#TOOK 28 minutes
 
 
 #NAMING CONVENTION
