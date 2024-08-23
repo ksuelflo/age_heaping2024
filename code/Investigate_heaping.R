@@ -14,7 +14,6 @@ library(doMC)
 library(ggplot2)
 library(gghighlight)
 library(pssst)
-registerDoMC(cores = 6)
 
 #Getting country codes and country names for DHS countries
 ids <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode"))
@@ -90,7 +89,7 @@ for (i in seq_along(countries)){
 summary_deaths <- vector(mode = "list", length = length(df_container))
 
 #This for loop wrangles data into monthly deaths by period. Included are all intervals of death.
-for (i in c(47,53,83)){
+for (i in seq_along(indexed_dfs)){
   #Checking dfs for NULL: There are many that had error with `format_dhs`, so they are null. We will skip those.
   if (is.null(df_container[[i]])){
     next
@@ -166,7 +165,7 @@ summary_deaths <- readRDS(file = "../output/summary.rds")
 indexed_dfs <- vector(mode = "list", length = length(summary_deaths))
 
 #Calculating heap indexes
-for (i in c(47,53,83)){
+for (i in seq_along(indexed_dfs)){
   #Checking if the df didn't read in, we skip it.
   if (is.null(summary_deaths[[i]])){
     next
@@ -191,7 +190,66 @@ for (i in seq_along(indexed_dfs)){
 #Making a vector of ages that is numeric, to help make plots:
 numeric_ages <- rep((1:24), 5)
 
-i<-1
-j<-1
+
 #Making plots for every period within every survey
+for (i in seq_along(indexed_dfs)){
+  df <- indexed_dfs[[i]]
+  if (is.null(df)){
+    next
+  }
+  for (j in 1:5){
+    df_periods <- df%>%
+      dplyr::select(-c(int_60_inf, int_24_36, int_36_48, int_48_60))%>%
+      pivot_longer(names_to = "interval", values_to = "deaths", cols = !c(country, survey_year, p_begin, p_end, p, hillChoi1014, pullum1014))%>%
+      mutate(age = numeric_ages, 
+             p_begin = as.factor(p_begin))
+    
+    p_death_dist <- df_periods%>%
+      filter(p == j)%>%
+      ggplot(aes(x = age, y = deaths))+
+      geom_line()+
+      geom_point(size = 1.5)+
+      gghighlight(age ==13)+
+      labs(title = str_c(countries[i], " ", unique(df_periods$survey_year)), subtitle = str_c("period ", j, " (", unique(df$p_begin), " - ", unique(df$p_end), ")"),
+           x = "Age at death (months)", y = "total")+
+      theme_minimal()+
+      theme(plot.title = element_text(hjust = 0.5, size = 20), 
+            plot.subtitle = element_text(hjust = .5), 
+            panel.background = element_blank())
+    
+    ggsave(plot = p_death_dist, filename = str_c(plot_folders[i], "/", "period_", j, "plot.png"), width = 6, height = 6, units = "in", bg = "#ffffff")
+  }
+  
+  p_all_periods <- df_periods%>%
+    ggplot(aes(x = age, y = deaths))+
+    geom_line(aes(group = p_begin, color = p_begin), alpha = .5)+
+    geom_point(aes(color = p_begin), size = 1.5, alpha = .5)+
+    geom_point(data = df_periods%>%filter(age == 13))+
+    labs(title = str_c(countries[i], " ", unique(df_periods$survey_year)), x = "Age at death (months)", y = "total",
+         color = "Year")+
+    scale_colour_viridis_d()+
+    theme_minimal()+
+    theme(plot.title = element_text(hjust = 0.5, size = 20), 
+          plot.subtitle = element_text(hjust = .5),
+          panel.background = element_blank())
+  
+  ggsave(plot = p_all_periods, filename = str_c(plot_folders[i], "/all_periods_plot.png"), width = 6, height = 6, units = "in", bg = "#ffffff")
+  
+  hill_p <- df%>%
+    ggplot(aes(x = p_end, y = hillChoi1014))+
+    geom_point(size = 1.5)+
+    geom_line()+
+    geom_hline(yintercept = 1, linetype = "dashed")+
+    labs(title = str_c(countries[i], " ", unique(df_periods$survey_year)), subtitle = "Heap index across five one year periods",
+         y = "Heap Index", x = "year")+
+    scale_y_continuous(limits = c(0, max(df$hillChoi1014) + .5))+
+    theme_minimal()+
+    theme(plot.title = element_text(hjust = 0.5, size = 20), 
+          plot.subtitle = element_text(hjust = .5),
+          panel.background = element_blank())
+  
+  ggsave(plot = hill_p, filename = str_c(plot_folders[i], "/heapindex.png"), width = 6, height = 6, units = "in", bg = "#ffffff")
+  
+  
+}
 

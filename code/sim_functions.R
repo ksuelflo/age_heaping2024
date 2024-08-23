@@ -675,3 +675,122 @@ get_uncertainty_surv_synthetic <- function(res_surv_synthetic,
 }
 
 
+format_data_mine <- function (lower_age, upper_age, rate, type, sex, fit, weight)
+{
+  if (missing(lower_age))
+    stop("\"lower_age\" is missing.")
+  if (missing(upper_age))
+    stop("\"upper_age\" is missing.")
+  if (missing(rate))
+    stop("\"rate\"      is missing.")
+  if (missing(type))
+    stop("\"type\"      is missing.")
+  if (missing(sex))
+    stop("\"sex\"       is missing.")
+  if (length(unique(c(length(lower_age), length(upper_age),
+                      length(rate), length(type), length(sex)))) != 1)
+    stop("Variables must have the same length.")
+  if (missing(fit) == F) {
+    if (length(lower_age) != length(fit))
+      stop("Variables must have the same length.")
+  }
+  if (missing(weight) == F) {
+    if (length(lower_age) != length(weight))
+      stop("Variables must have the same length.")
+  }
+  if (!is.numeric(lower_age))
+    stop("\"lower_age\" must be numeric.")
+  if (!is.numeric(upper_age))
+    stop("\"upper_age\" must be numeric.")
+  if (!is.numeric(rate))
+    stop("\"rates\" must be numeric.")
+  if (!is.character(type))
+    stop("\"type\" must be a character string.")
+  if (!is.character(sex))
+    stop("\"sex\" must be a character string.")
+  if (length(unique(sex)) != 1)
+    stop("\"sex\" must be identical for all inputs.")
+  if (missing(fit) == F) {
+    if (!is.character(fit))
+      stop("\"fit\" must be a character string.")
+  }
+  if ((F %in% (lower_age %in% c(0, 7, 14, 21, 28, 60.875,
+                                91.3125, 121.75, 152.1875, 182.625, 213.0625, 243.5,
+                                273.9375, 304.375, 334.8125, 365.25, 456.5625, 547.875,
+                                639.1875, 730.5, 1095.75, 1461))))
+    stop("Wrong value for \"lower_age\".")
+  if ((F %in% (upper_age %in% c(7, 14, 21, 28, 60.875, 91.3125,
+                                121.75, 152.1875, 182.625, 213.0625, 243.5, 273.9375,
+                                304.375, 334.8125, 365.25, 456.5625, 547.875, 639.1875,
+                                730.5, 1095.75, 1461, 1826.25))))
+    stop("Wrong value for \"upper_age\".")
+  if (F %in% (lower_age < upper_age))
+    stop("\"lower_age\"   >  \"upper_age\".")
+  if (T %in% (rate <= 0))
+    stop("\"rates\" must be > 0.")
+  if (F %in% (sex %in% c("female", "male", "total")))
+    stop("Wrong value for \"sex\".")
+  if (F %in% (type %in% c("qx", "mx", "zx")))
+    stop("Wrong value for \"type\".")
+  if (T %in% (type %in% c("zx"))) {
+    p <- which(type == "zx")
+    if (length(p) > 1)
+      stop("Only one z(x) can be matched.")
+    if (length(type) < 2)
+      stop("z(x) can be matched only with another input (either mx or qx).")
+    if (length(type) > 2)
+      stop("z(x) can be matched only with one single other input.")
+    if (F %in% (lower_age[1] == 0))
+      stop("\"lower_age\" must be equal to 0 for both inputs when matching z(x)")
+    if (F %in% (lower_age[2] == 0))
+      stop("\"lower_age\" must be equal to 0 for both inputs when matching z(x)")
+    if (F %in% (upper_age[p] == 28 | upper_age[p] == 91.3125))
+      stop("\"upper_age\" must be equal to 28 or 91.3125 for z(x)")
+  }
+  if (length(lower_age) == 1 | length(lower_age) == 2) {
+    if (missing(fit) == F) {
+      if ((F %in% (fit %in% c("min", "match"))))
+        warning("Wrong value for \"fit\". \"match\" used instead")
+      if ("min" %in% fit)
+        warning("Wrong value for \"fit\". \"match\" used instead")
+      fit <- "match"
+    }
+    else {
+      fit <- "match"
+    }
+    if (missing(weight) == F)
+      warning("\"weight\" not used with matching.")
+  }
+  df <- data.frame(lower_age = lower_age, upper_age = upper_age,
+                   rate = rate, type = type, sex = sex, fit = fit)
+  if (length(lower_age) > 2) {
+    if (missing(fit))
+      stop("\"fit\" is missing.")
+    if (F %in% (df$fit %in% c("min", "match")))
+      stop("Wrong value for fit.")
+    if (F %in% ("match" %in% df$fit))
+      stop("\"match\" is missing in \"fit\".")
+    if (sum("match" == df$fit) > 1)
+      stop("Only one input can be matched.")
+    if (F %in% ("min" %in% df$fit))
+      stop("\"min\" is missing in \"fit\".")
+    if (missing(weight) == F) {
+      df$weight <- weight
+      if (is.character(df$weight[df$fit == "min"]))
+        stop("\"weight\" must be numeric.")
+      if (!is.na(df$weight[df$fit == "match"]))
+        warning("Weight for matched input not used. NA used instead")
+      df$weight[df$fit == "match"] <- NA
+    }
+    else {
+      weight <- rep(1/length(lower_age), length(lower_age))
+    }
+  }
+  if (sum(duplicated(df[, c("lower_age", "upper_age", "type")])) !=
+      sum(duplicated(df[, c("lower_age", "upper_age", "type",
+                            "rate")])))
+    stop("Different rates for a same age group.")
+  return(list(input = df, format = "checked"))
+}
+
+
