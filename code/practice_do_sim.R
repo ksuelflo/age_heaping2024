@@ -1,7 +1,7 @@
 source("sim_functions.R")
-cores <- strtoi(Sys.getenv("SLURM_CPUS_PER_TASK", unset=1))
-registerDoMC(cores)
-print(str_c("Using ", cores, " cores"))
+# cores <- strtoi(Sys.getenv("SLURM_CPUS_PER_TASK", unset=1))
+# registerDoMC(cores)
+# print(str_c("Using ", cores, " cores"))
 
 #General format of files:
 # sim_ROW_numSIM_lnormmean_lnormsd_samplesize_age1_range1_periodLength_periods_proportion1_seed
@@ -31,13 +31,11 @@ print(str_c("Using ", cores, " cores"))
 #IMPORTANT: this data line is used to help fit logquad model.
 data("fin1933")
 
-print("Line before for loop!")
-
 #Getting all generated data frames' file paths.
-all_files <- list.files(path = "../data")
-
+all_files <- list.files(path = "../dataPractice")
+str_subset(all_files, pattern = "ROW=6")
 #Looping through each folder (looping through each sim setting, essentially)
-for (i in 3:4){
+for (i in seq_along(all_files)){
   print(all_files[i])
 #Getting all the different dfs for the ith sim setting
 # files <- list.files(path = str_c("../data/", all_folders[i]))
@@ -87,6 +85,17 @@ for (i in 3:4){
   #------------------------------------------------
   
   #fit surv_synthetic() with Weibull distribution WITHOUT age heaping adjustment
+  
+  tryCatch(expr = {
+    res_surv_weibull <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
+                                       I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
+                                       t_1i = "right_interval", numerical_grad = TRUE, dist = "weibull")
+  },
+  error = {
+    print("got an error grrrr")
+    next
+  })
+  
   
   res_surv_weibull <- surv_synthetic(df = sim, individual = "id", survey = FALSE, p = "period", a_pi = "age_at_begin", l_p = "period_length",
                                      I_i = "interval_indicator", A_i = "across_boundary", t_i = "right_censor_age", t_0i = "left_interval",
@@ -304,7 +313,7 @@ for (i in 3:4){
   # #Save the summary results somewhere (Probably new folder) STILL NEED RELATIVE PATH
   # saveRDS(summary_results, str_c(folder_summaries[i], "/", str_replace(all_files[j], "sim", "summary")))
 }
-
+saveRD
 #Run the for loop above.
 
 #Then use warnings() to look through the warnings output from logquad. 

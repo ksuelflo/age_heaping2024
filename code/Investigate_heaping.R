@@ -40,23 +40,20 @@ set_rdhs_config(email = "ksuelflo@macalester.edu",
 downloads <- get_datasets(datasets$FileName)
 
 #Setting up containers
-years_df <- rep(0, length(downloads))
-
+years_df <- rep(0, 2)
 #skipping 47 for now: It has an error with both v023 and v024 strata. And skipping 53, 83
 
-downloads[47]
-downloads[53]
-downloads[83]
-
-for (i in c(47,53,83)){
-
+df_container <- vector("list", length = 2)
+indicator <- 1
+for (i in c(52, 81)){
+  
   #Reading in data
   print(i)
   births <- readRDS(downloads[[i]])
   
   #Survey year
   year <- min(births$v007)
-  years_df[i] <- year
+  years_df[indicator] <- year
   
   tryCatch(
     expr = {
@@ -68,10 +65,9 @@ for (i in c(47,53,83)){
       print(str_c("finished number ", i, " download.", " Using strata(v024, v025)"))
     }
   )
-  df_container[[i]] <- df_birth
-  
+  df_container[[indicator]] <- df_birth
+  indicator <- indicator + 1
 }
-
 
 #Using `ids` and `downloads` to scrape out the country name for each survey.
 
@@ -86,10 +82,9 @@ for (i in seq_along(countries)){
 }
 
 #Container for summary deaths by month for each survey
-summary_deaths <- vector(mode = "list", length = length(df_container))
-
+summary_deaths_2 <- vector(mode = "list", length = length(df_container))
 #This for loop wrangles data into monthly deaths by period. Included are all intervals of death.
-for (i in seq_along(indexed_dfs)){
+for (i in seq_along(df_container)){
   #Checking dfs for NULL: There are many that had error with `format_dhs`, so they are null. We will skip those.
   if (is.null(df_container[[i]])){
     next
@@ -137,12 +132,13 @@ for (i in seq_along(indexed_dfs)){
            p_end = p_begin + 1,
            .after = p)
   
-  summary_deaths[[i]] <- summary_heap_df
+  summary_deaths_2[[i]] <- summary_heap_df
 }
 
 saveRDS(summary_deaths, file = "../output/summary.rds")
 
 summary_deaths <- readRDS(file = "../output/summary.rds")
+
 #Now to calculate heaping indexes. Some info about heaping index
 
 #Hill and Choi 2006 index:
@@ -167,20 +163,108 @@ indexed_dfs <- vector(mode = "list", length = length(summary_deaths))
 #Calculating heap indexes
 for (i in seq_along(indexed_dfs)){
   #Checking if the df didn't read in, we skip it.
-  if (is.null(summary_deaths[[i]])){
-    next
-  }
-  
+  # if (is.null(summary_deaths[[i]])){
+  #   next
+  # }
+  # 
   df <- summary_deaths[[i]]%>%
-    mutate(hillChoi1014 = int_12_13*5/(int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15),
-           pullum1014 = (int_12_13 - ((int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15)/5))/
-             ((int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15)/5)*100)
+    mutate(sample_size = int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15,
+           hillChoi1014 = int_12_13*5/(sample_size),
+           pullum1014 = (int_12_13 - ((sample_size)/5))/((sample_size)/5)*100,
+           standardIndex = (int_12_13 - (sample_size/5))/sample_size)
   indexed_dfs[[i]] <- df
 }
-
 #Setting up folders for plots and tables
 #Also making a container for folders to make it easier
 
+all_surveys <- bind_rows(indexed_dfs)
+
+#Fixing Ethiopia DONE
+# all_surveys$survey_year[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+# all_surveys$p_begin[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+# all_surveys$p_end[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+
+all_surveys <- all_surveys%>%
+  dplyr::select(-c(int_24_36, int_36_48, int_48_60, int_60_inf))
+
+
+all_surveys_combined <- all_surveys%>%
+  group_by(country, survey_year)%>%
+  summarize(int_10_11_sum = sum(int_10_11),
+            int_11_12_sum = sum(int_11_12),
+            int_12_13_sum = sum(int_12_13),
+            int_13_14_sum = sum(int_13_14),
+            int_14_15_sum = sum(int_14_15),
+            sample_size_sum = sum(sample_size))%>%
+  ungroup()%>%
+  mutate(standardIndex = (int_12_13_sum - (sample_size_sum/5))/sample_size_sum,
+         hillChoi1014 = int_12_13_sum*5/(sample_size_sum))
+
+
+latex_table <- all_surveys_combined%>%
+  dplyr::select(-c(int_10_11_sum, int_11_12_sum, int_12_13_sum, int_13_14_sum, int_14_15_sum, standardIndex))%>%
+  mutate(hillChoi1014 = round(hillChoi1014, 2))
+
+
+  
+kable(latex_table, format = "latex")
+
+#Spaghetti plot: BUST
+all_surveys%>%
+  ggplot(aes(x = p_begin, y = hillChoi1014))+
+  geom_point(aes(color = country))+
+  geom_line(aes(group = interaction(country, survey_year), color = country))+
+  theme_minimal()
+
+#Plot of index vs sample size
+p_1 <- all_surveys%>%
+  ggplot(aes(x = sample_size, y = hillChoi1014))+
+  geom_point()+
+  geom_hline(yintercept = 1, linetype = "dashed")+
+  theme_minimal()+
+  labs(y = "Heap Index", title = "Heap Index vs Sample Size Across 87 sub-Saharan Africa Surveys",
+       x = "Sample Size", subtitle = "Each survey contains five one year long periods, thus there is five data points per survey.")
+
+ggsave(filename = "../plots/p_1.png", bg = "white", plot = p_1, width = 300, height = 300, units = "px")
+#Plot of standardized index vs sample size
+#Coloring by country is a little crazy
+p_2 <- all_surveys%>%
+  ggplot(aes(x = sample_size, y = standardIndex))+
+  geom_point()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  theme_minimal()+
+  labs(y = "Standardized Heap Index", title = "Standardized Heap Index vs Sample Size Across 87 sub-Saharan Africa Surveys",
+       x = "Sample Size", subtitle = "Each survey contains five one year long periods, thus there is five data points per survey.")
+
+ggsave(filename = "../plots/p_2.png", bg = "white", plot = p_2, width = 300, height = 300, units = "px")
+
+#Plot of standardized index vs sample size, combining periods
+p_3 <- all_surveys_combined%>%
+  ggplot(aes(x = sample_size_sum, y = standardIndex))+
+  geom_point(aes(color = country))+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  theme_minimal()+
+  labs(y = "Standardized Heap Index", title = "Standardized Heap Index vs Sample Size Across 87 sub-Saharan Africa Surveys",
+       x = "Sample Size", subtitle = "Each survey contains one five year long period.")
+
+ggsave(filename = "../plots/p_3.png", bg = "white", plot = p_3, width = 300, height = 300, units = "px")
+
+#Manual color scale
+cols <- c("Niger" = "#32ECC2", "Nigeria" = "#FFC107", "Tanzania" = "#1E88E5", "Senegal" = "#D81B60")
+
+p_4 <- all_surveys_combined%>%
+  ggplot(aes(x = survey_year, y = hillChoi1014, size = sample_size_sum, color = country))+
+  geom_point()+
+  geom_hline(yintercept = 1, linetype = "dashed")+
+  theme_minimal()+
+  scale_color_manual(values = cols, na.value = "black")+
+  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months", title = "Heap Indexes in sub-Saharan Africa Surveys since 2005",
+       country = "Country")
+
+ggsave(filename = "../plots/p_4.png", bg = "white", plot = p_4, width = 1000, height = 800, units = "px")
+
+#--------------------------------------------------------------------
+#Making plots (ALREADY MADE, SKIP)
 plot_folders <- rep("", length(indexed_dfs))
 for (i in seq_along(indexed_dfs)){
   #dir.create(path = str_c("../plots/", str_replace_all(countries[i], pattern = "\\s", replacement = "-"), "_", years_df[i]))
