@@ -30,12 +30,12 @@ for (i in seq_along(summary_folders)){
       mutate(seed = str_extract(summaries[j], pattern = "(?<=seed=)\\d*"),
              lnorm_mean = as.numeric(str_extract(summaries[j], pattern = "(?<=lnormmean=)\\d*")),
              lnorm_sd = as.numeric(str_extract(summaries[j], pattern = "(?<=lnormsd=)\\d*"))/10,
-             sample_size = as.numeric(str_extract(summaries[j], pattern = "(?<=sample_size=)\\d*")),
+             sample_size = as.numeric(str_extract(summaries[j], pattern = "(?<=samplesize=)\\d*")),
              low_range = as.numeric(str_extract(summaries[j], pattern = "(?<=range=)\\d")),
              high_range = as.numeric(str_extract(summaries[j], pattern = "(?<=range=\\d)\\d*")),
              proportion = as.numeric(str_extract(summaries[j], pattern = "(?<=proportion=)\\d*"))/10)
+    summary$model[21:25] <- "logquad_adj"
     container[[j]] <- summary
-    
   }
   #Combining all the seeds into one df
   container <- bind_rows(container)
@@ -45,6 +45,5 @@ for (i in seq_along(summary_folders)){
   
 }
 
-
-
+saveRDS(big_container, "../Results/in_progress_summary_list2.rds")
 
