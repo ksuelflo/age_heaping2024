@@ -1,4 +1,7 @@
 source("sim_functions.R")
+
+
+
 # cores <- strtoi(Sys.getenv("SLURM_CPUS_PER_TASK", unset=1))
 # registerDoMC(cores)
 # print(str_c("Using ", cores, " cores"))
@@ -9,6 +12,10 @@ source("sim_functions.R")
 #For the first row of clean_params, and the the first simulation (out of 1000), the file looks like this:
 # "sim_ROW=1_numSIM=1_lnormmean=15_lnormsd=2_samplesize=1000_age1=12_range1=921_periodLength=12_periods=5_proportion1=01_seed=1"
 
+
+ggplot(containerports, aes(x = var))+
+  geom_histogram(bin)+
+  scale_x_continuous(breaks = c())
 
 
 

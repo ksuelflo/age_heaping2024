@@ -40,12 +40,12 @@ set_rdhs_config(email = "ksuelflo@macalester.edu",
 downloads <- get_datasets(datasets$FileName)
 
 #Setting up containers
-years_df <- rep(0, 2)
-#skipping 47 for now: It has an error with both v023 and v024 strata. And skipping 53, 83
 
-df_container <- vector("list", length = 2)
-indicator <- 1
-for (i in c(52, 81)){
+one_46_dfs <- readRDS("../output/one-46dfs.rds")
+
+#1:37 are downloaded correctly and line up with the downloads object and the order in which surveys are present on there. 
+
+for (i in 38:length(downloads)){
   
   #Reading in data
   print(i)
@@ -53,7 +53,7 @@ for (i in c(52, 81)){
   
   #Survey year
   year <- min(births$v007)
-  years_df[indicator] <- year
+  # years_df[indicator] <- year
   
   tryCatch(
     expr = {
@@ -65,8 +65,7 @@ for (i in c(52, 81)){
       print(str_c("finished number ", i, " download.", " Using strata(v024, v025)"))
     }
   )
-  df_container[[indicator]] <- df_birth
-  indicator <- indicator + 1
+  one_46_dfs[[i]] <- df_birth
 }
 
 #Using `ids` and `downloads` to scrape out the country name for each survey.
@@ -163,9 +162,9 @@ indexed_dfs <- vector(mode = "list", length = length(summary_deaths))
 #Calculating heap indexes
 for (i in seq_along(indexed_dfs)){
   #Checking if the df didn't read in, we skip it.
-  # if (is.null(summary_deaths[[i]])){
-  #   next
-  # }
+  if (is.null(summary_deaths[[i]])){
+    next
+  }
   # 
   df <- summary_deaths[[i]]%>%
     mutate(sample_size = int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15,
@@ -258,8 +257,9 @@ p_4 <- all_surveys_combined%>%
   geom_hline(yintercept = 1, linetype = "dashed")+
   theme_minimal()+
   scale_color_manual(values = cols, na.value = "black")+
-  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months", title = "Heap Indexes in sub-Saharan Africa Surveys since 2005",
-       country = "Country")
+  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months", title = "Heap Index by Country-Year",
+       color = "Country")+
+  theme(text=element_text(size=24))
 
 ggsave(filename = "../plots/p_4.png", bg = "white", plot = p_4, width = 1000, height = 800, units = "px")
 
@@ -281,6 +281,7 @@ for (i in seq_along(indexed_dfs)){
   if (is.null(df)){
     next
   }
+  if ()
   for (j in 1:5){
     df_periods <- df%>%
       dplyr::select(-c(int_60_inf, int_24_36, int_36_48, int_48_60))%>%
