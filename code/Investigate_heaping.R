@@ -69,11 +69,88 @@ for (i in 32:length(downloads)){
 #Saving dfs
 saveRDS(all_dfs, "../data/DHS_surveys_all.rds")
 
+#readRDS of all 91 dfs (not 92 because #31 didn't work)
+all_dfs <- readRDS("../data/DHS_surveys_all.rds")
+
+
+#--------------------------------------------------------------------
+
+#FOR TANZANIA 2022 ONLY
+
+births <- read.dta13("../../data/Tanzania_2022/TZBR82FL.DTA")
+
+#Survey year
+year <- min(births$v007)
+# years_df[indicator] <- year
+
+tryCatch(
+  expr = {
+    df_birth <- format_dhs(df = births, survey_year = year, period_boundaries = c(year-5, year-4, year-3, year-2, year-1, year))
+  },
+  error = function(e){
+    df_birth <- format_dhs(df = births, survey_year = year, period_boundaries = c(year-5, year-4, year-3, year-2, year-1, year), strata = c("v024", "v025"))
+  }
+)
+
+summary_heap_df_TZ <- df_birth%>%
+  filter(I_i ==1)%>%
+  mutate(avg_death = (t_0i + t_1i)/ 2,
+         death_date = avg_death*30 + b_i,
+         died_in_period = if_else(y_p <= death_date & death_date < (y_p + 365), 1, 0))%>%
+  group_by(p)%>%
+  summarize(int_0_1 = sum(0 <= avg_death & avg_death < 1 & died_in_period == 1),
+            int_1_2 = sum(1 <= avg_death & avg_death < 2 & died_in_period == 1),
+            int_2_3 = sum(2 <= avg_death & avg_death < 3 & died_in_period == 1),
+            int_3_4 = sum(3 <= avg_death & avg_death < 4 & died_in_period == 1),
+            int_4_5 = sum(4 <= avg_death & avg_death < 5 & died_in_period == 1),
+            int_5_6 = sum(5 <= avg_death & avg_death < 6 & died_in_period == 1),
+            int_6_7 = sum(6 <= avg_death & avg_death < 7 & died_in_period == 1),
+            int_7_8 = sum(7 <= avg_death & avg_death < 8 & died_in_period == 1),
+            int_8_9 = sum(8 <= avg_death & avg_death < 9 & died_in_period == 1),
+            int_9_10 = sum(9 <= avg_death & avg_death < 10 & died_in_period == 1),
+            int_10_11 = sum(10 <= avg_death & avg_death < 11 & died_in_period == 1),
+            int_11_12 = sum(11 <= avg_death & avg_death < 12 & died_in_period == 1),
+            int_12_13 = sum(12 <= avg_death & avg_death < 13 & died_in_period == 1),
+            int_13_14 = sum(13 <= avg_death & avg_death < 14 & died_in_period == 1),
+            int_14_15 = sum(14 <= avg_death & avg_death < 15 & died_in_period == 1),
+            int_15_16 = sum(15 <= avg_death & avg_death < 16 & died_in_period == 1),
+            int_16_17 = sum(16 <= avg_death & avg_death < 17 & died_in_period == 1),
+            int_17_18 = sum(17 <= avg_death & avg_death < 18 & died_in_period == 1),
+            int_18_19 = sum(18 <= avg_death & avg_death < 19 & died_in_period == 1),
+            int_19_20 = sum(19 <= avg_death & avg_death < 20 & died_in_period == 1),
+            int_20_21 = sum(20 <= avg_death & avg_death < 21 & died_in_period == 1),
+            int_21_22 = sum(21 <= avg_death & avg_death < 22 & died_in_period == 1),
+            int_22_23 = sum(22 <= avg_death & avg_death < 23 & died_in_period == 1),
+            int_23_24 = sum(23 <= avg_death & avg_death < 24 & died_in_period == 1),
+            int_24_36 = sum(24 <= avg_death & avg_death < 36 & died_in_period == 1),
+            int_36_48 = sum(36 <= avg_death & avg_death < 48 & died_in_period == 1),
+            int_48_60 = sum(48 <= avg_death & avg_death < 60 & died_in_period == 1),
+            int_60_inf = sum(60 <= avg_death & avg_death < Inf & died_in_period == 1))%>%
+  mutate(country = "Tanzania", #Use `i` instead when in the for loop.
+         survey_year = year, 
+         .before = p)%>% #Use `i` instead when in the for loop.
+  mutate(p_begin = survey_year - 6 + p,
+         p_end = p_begin + 1,
+         .after = p)
+
+df_TZ <- summary_heap_df_TZ%>%
+  mutate(sample_size = int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15,
+         hillChoi1014 = int_12_13*5/(sample_size),
+         pullum1014 = (int_12_13 - ((sample_size)/5))/((sample_size)/5)*100,
+         standardIndex = (int_12_13 - (sample_size/5))/sample_size,
+         log_index = log_index(summary_heap_df_TZ))
+
+#SKIP TO LINE 271 (rbind....)
+
+#---------------------------------------------------------------------
+
+
+
 #Using `ids` and `downloads` to scrape out the country name for each survey.
 
-countries <- rep("", length(downloads))
+countries <- rep("", length(downloads)-1)
 #All 90 codes for each df
-ssa_codes <- str_sub(names(downloads), 1, 2)
+ssa_codes <- str_sub(names(downloads), 1, 2)[-31]
 
 #Looping through each survey, and finding corresponding country for the ith code.
 for (i in seq_along(countries)){
@@ -82,16 +159,18 @@ for (i in seq_along(countries)){
 }
 
 #Container for summary deaths by month for each survey
-summary_deaths_2 <- vector(mode = "list", length = length(df_container))
+summary_deaths_2 <- vector(mode = "list", length = length(all_dfs))
 #This for loop wrangles data into monthly deaths by period. Included are all intervals of death.
-for (i in seq_along(df_container)){
-  #Checking dfs for NULL: There are many that had error with `format_dhs`, so they are null. We will skip those.
-  if (is.null(df_container[[i]])){
+for (i in seq_along(all_dfs)){
+
+  if (is.null(all_dfs[[i]])){
     next
   }
   
+  year <- min(all_dfs[[i]]$survey_year)
+  
   print(i)
-  summary_heap_df <- df_container[[i]]%>%
+  summary_heap_df <- all_dfs[[i]]%>%
     filter(I_i ==1)%>%
     mutate(avg_death = (t_0i + t_1i)/ 2,
            death_date = avg_death*30 + b_i,
@@ -126,7 +205,7 @@ for (i in seq_along(df_container)){
               int_48_60 = sum(48 <= avg_death & avg_death < 60 & died_in_period == 1),
               int_60_inf = sum(60 <= avg_death & avg_death < Inf & died_in_period == 1))%>%
     mutate(country = countries[i], #Use `i` instead when in the for loop.
-           survey_year = years_df[i], 
+           survey_year = year, 
            .before = p)%>% #Use `i` instead when in the for loop.
     mutate(p_begin = survey_year - 6 + p,
            p_end = p_begin + 1,
@@ -135,9 +214,9 @@ for (i in seq_along(df_container)){
   summary_deaths_2[[i]] <- summary_heap_df
 }
 
-saveRDS(summary_deaths, file = "../output/summary.rds")
+saveRDS(summary_deaths_2, file = "../data/summary_dhs_deaths.rds")
 
-summary_deaths <- readRDS(file = "../output/summary.rds")
+summary_deaths <- readRDS(file = "../data/summary_dhs_deaths.rds")
 
 #Now to calculate heaping indexes. Some info about heaping index
 
@@ -158,35 +237,48 @@ summary_deaths <- readRDS(file = "../output/summary.rds")
 #START HERE 
 # summary_deaths <- readRDS(file = "../output/summary.rds")
 
-indexed_dfs <- vector(mode = "list", length = length(summary_deaths))
+indexed_dfs <- vector(mode = "list", length = length(summary_deaths_2))
+
+#Function to get logged index
+log_index <- function(data){
+  data_2 <- data%>%
+    mutate(prob = int_12_13/(int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15),
+           beta_zero = log((prob)/(1-prob)),
+           index_log = exp(beta_zero)*4)
+  return (data_2$index_log)
+}
 
 #Calculating heap indexes
 for (i in seq_along(indexed_dfs)){
   #Checking if the df didn't read in, we skip it.
-  if (is.null(summary_deaths[[i]])){
+  if (is.null(summary_deaths_2[[i]])){
     next
   }
-  # 
-  df <- summary_deaths[[i]]%>%
+  
+  
+  df <- summary_deaths_2[[i]]%>%
     mutate(sample_size = int_10_11 + int_11_12 + int_12_13 + int_13_14 + int_14_15,
            hillChoi1014 = int_12_13*5/(sample_size),
            pullum1014 = (int_12_13 - ((sample_size)/5))/((sample_size)/5)*100,
-           standardIndex = (int_12_13 - (sample_size/5))/sample_size)
+           standardIndex = (int_12_13 - (sample_size/5))/sample_size,
+           log_index = log_index(summary_deaths_2[[i]]))
   indexed_dfs[[i]] <- df
 }
 #Setting up folders for plots and tables
 #Also making a container for folders to make it easier
 
-all_surveys <- bind_rows(indexed_dfs)
+
+indexed_dfs[[length(indexed_dfs)+1]] <- df_TZ
+all_surveys <- bind_rows(indexed_dfs)%>%
+  filter(!is.na(country))
 
 #Fixing Ethiopia DONE
-# all_surveys$survey_year[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
-# all_surveys$p_begin[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
-# all_surveys$p_end[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+all_surveys$survey_year[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+all_surveys$p_begin[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
+all_surveys$p_end[all_surveys$country == "Ethiopia"] <- all_surveys$survey_year[all_surveys$country == "Ethiopia"] + 8
 
 all_surveys <- all_surveys%>%
   dplyr::select(-c(int_24_36, int_36_48, int_48_60, int_60_inf))
-
 
 all_surveys_combined <- all_surveys%>%
   group_by(country, survey_year)%>%
@@ -198,7 +290,9 @@ all_surveys_combined <- all_surveys%>%
             sample_size_sum = sum(sample_size))%>%
   ungroup()%>%
   mutate(standardIndex = (int_12_13_sum - (sample_size_sum/5))/sample_size_sum,
-         hillChoi1014 = int_12_13_sum*5/(sample_size_sum))
+         hillChoi1014 = int_12_13_sum*5/(sample_size_sum),
+         prob = int_12_13_sum/sample_size_sum,
+         log_index = exp(log(prob/(1-prob)))*4)
 
 
 latex_table <- all_surveys_combined%>%
@@ -258,11 +352,25 @@ p_4 <- all_surveys_combined%>%
   geom_hline(yintercept = 1, linetype = "dashed")+
   theme_minimal()+
   scale_color_manual(values = cols, na.value = "black")+
-  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months", title = "Heap Index by Country-Year",
+  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months",
        color = "Country")+
   theme(text=element_text(size=24))
 
 ggsave(filename = "../plots/p_4.png", bg = "white", plot = p_4, width = 1000, height = 800, units = "px")
+
+p_5 <- all_surveys_combined%>%
+  ggplot(aes(x = survey_year, y = log_index, size = sample_size_sum, color = country))+
+  geom_point()+
+  geom_hline(yintercept = 1, linetype = "dashed")+
+  theme_minimal()+
+  scale_color_manual(values = cols, na.value = "black")+
+  labs(x = "Year", y = "Heap Index", size = "Total Deaths\n10-14 months",
+       color = "Country")+
+  theme(text=element_text(size=24))
+
+p_6
+
+ggsave(filename = "../plots/p_5logindex.png", bg = "white", plot = p_5, width = 1000, height = 800, units = "px")
 
 #--------------------------------------------------------------------
 #Making plots (ALREADY MADE, SKIP)
@@ -275,6 +383,15 @@ for (i in seq_along(indexed_dfs)){
 #Making a vector of ages that is numeric, to help make plots:
 numeric_ages <- rep((1:24), 5)
 
+#Remaking Tanzania 2022, Senegal 2010, Nigeria 2013, and Niger 2006
+plots_df <- indexed_dfs%>%
+  bind_rows()%>%
+  filter(country %in% c("Tanzania", "Niger", "Nigeria", "Senegal"),
+         survey_year %in% c(2022, 2010, 2013, 2006))
+
+plots_df <- plots_df[-(1:5),]
+
+
 
 #Making plots for every period within every survey
 for (i in seq_along(indexed_dfs)){
@@ -282,7 +399,6 @@ for (i in seq_along(indexed_dfs)){
   if (is.null(df)){
     next
   }
-  if ()
   for (j in 1:5){
     df_periods <- df%>%
       dplyr::select(-c(int_60_inf, int_24_36, int_36_48, int_48_60))%>%
