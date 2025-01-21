@@ -39,13 +39,11 @@ set_rdhs_config(email = "ksuelflo@macalester.edu",
 
 downloads <- get_datasets(datasets$FileName)
 
-#Setting up containers
+#NOTE downloads[31] does not work: dataset isn't available through my login credentials. So skip 31
 
-one_46_dfs <- readRDS("../output/one-46dfs.rds")
+all_dfs <- vector("list", length(downloads))
 
-#1:37 are downloaded correctly and line up with the downloads object and the order in which surveys are present on there. 
-
-for (i in 38:length(downloads)){
+for (i in 32:length(downloads)){
   
   #Reading in data
   print(i)
@@ -65,8 +63,11 @@ for (i in 38:length(downloads)){
       print(str_c("finished number ", i, " download.", " Using strata(v024, v025)"))
     }
   )
-  one_46_dfs[[i]] <- df_birth
+  all_dfs[[i]] <- df_birth
 }
+
+#Saving dfs
+saveRDS(all_dfs, "../data/DHS_surveys_all.rds")
 
 #Using `ids` and `downloads` to scrape out the country name for each survey.
 
